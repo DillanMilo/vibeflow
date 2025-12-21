@@ -11,7 +11,8 @@ export function NotesArea() {
 
   // Sync local state when hydrated state changes
   useEffect(() => {
-    setLocalNotes(state.notes);
+    // Defer state update to avoid synchronous setState in effect
+    queueMicrotask(() => setLocalNotes(state.notes));
   }, [state.notes]);
 
   const handleChange = (value: string) => {

@@ -3,7 +3,19 @@
     "allow": [
       "WebSearch",
       "Bash(npx create-next-app@latest:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd Kanban board with todo list and notes\n\n- Kanban board with Todo, In Progress, Complete columns\n- Drag and drop cards between columns \\(dnd-kit\\)\n- Quick tasks sidebar with promote-to-card feature\n- Auto-saving notes area\n- Dark mode interface\n- localStorage persistence\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(gh repo create:*)",
+      "Bash(brew install gh)",
+      "Bash(git -C /Users/dillanmilosevich/Desktop/projectmanagment log --oneline -10)",
+      "Bash(npm run lint:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run build:*)",
+      "Bash(tree:*)",
+      "Bash(curl:*)",
+      "Bash(lsof:*)",
+      "Bash(kill:*)",
+      "Bash(npm run dev:*)"
     ]
   }
 }

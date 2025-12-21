@@ -177,7 +177,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       console.warn('Failed to load state from localStorage:', e);
     }
-    setIsHydrated(true);
+    // Defer state update to avoid synchronous setState in effect
+    queueMicrotask(() => setIsHydrated(true));
   }, []);
 
   // Save to localStorage on state changes (after hydration)
