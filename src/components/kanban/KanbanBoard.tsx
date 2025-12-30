@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -19,10 +19,13 @@ import { useApp } from '@/context/AppContext';
 import { KanbanColumn } from './KanbanColumn';
 import { KanbanCard } from './KanbanCard';
 import { COLUMNS, type KanbanStatus, type KanbanCard as KanbanCardType } from '@/types';
+import { cn } from '@/lib/utils';
 
 export function KanbanBoard() {
-  const { state, dispatch } = useApp();
+  const { cards, dispatch } = useApp();
   const [activeCard, setActiveCard] = useState<KanbanCardType | null>(null);
+  const [activeColumnIndex, setActiveColumnIndex] = useState(0);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -42,11 +45,42 @@ export function KanbanBoard() {
   );
 
   const getCardsByStatus = (status: KanbanStatus) => {
-    return state.cards.filter((card) => card.status === status);
+    return cards.filter((card) => card.status === status);
+  };
+
+  // Handle scroll to detect active column on mobile
+  const handleScroll = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const scrollLeft = container.scrollLeft;
+    const columnWidth = container.scrollWidth / COLUMNS.length;
+    const newIndex = Math.round(scrollLeft / columnWidth);
+    setActiveColumnIndex(Math.min(Math.max(newIndex, 0), COLUMNS.length - 1));
+  }, []);
+
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    container.addEventListener('scroll', handleScroll, { passive: true });
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [handleScroll]);
+
+  // Scroll to column when dot is clicked
+  const scrollToColumn = (index: number) => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const columnWidth = container.scrollWidth / COLUMNS.length;
+    container.scrollTo({
+      left: columnWidth * index,
+      behavior: 'smooth',
+    });
   };
 
   const handleDragStart = (event: DragStartEvent) => {
-    const card = state.cards.find((c) => c.id === event.active.id);
+    const card = cards.find((c) => c.id === event.active.id);
     if (card) {
       setActiveCard(card);
     }
@@ -59,7 +93,7 @@ export function KanbanBoard() {
     const activeId = active.id as string;
     const overId = over.id as string;
 
-    const activeCard = state.cards.find((c) => c.id === activeId);
+    const activeCard = cards.find((c) => c.id === activeId);
     if (!activeCard) return;
 
     // Check if over a column
@@ -73,7 +107,7 @@ export function KanbanBoard() {
     }
 
     // Check if over another card
-    const overCard = state.cards.find((c) => c.id === overId);
+    const overCard = cards.find((c) => c.id === overId);
     if (overCard && activeCard.status !== overCard.status) {
       dispatch({
         type: 'MOVE_CARD',
@@ -93,8 +127,8 @@ export function KanbanBoard() {
 
     if (activeId === overId) return;
 
-    const activeCard = state.cards.find((c) => c.id === activeId);
-    const overCard = state.cards.find((c) => c.id === overId);
+    const activeCard = cards.find((c) => c.id === activeId);
+    const overCard = cards.find((c) => c.id === overId);
 
     if (!activeCard) return;
 
@@ -128,18 +162,46 @@ export function KanbanBoard() {
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex gap-4 md:gap-6 p-4 md:p-6 h-full overflow-x-auto snap-x snap-mandatory md:snap-none touch-pan-x">
-        {COLUMNS.map((column, index) => (
-          <KanbanColumn
-            key={column.id}
-            id={column.id}
-            title={column.title}
-            cards={getCardsByStatus(column.id)}
-            animationDelay={index}
-          />
-        ))}
-        {/* Spacer for mobile scroll padding */}
-        <div className="w-4 md:w-0 flex-shrink-0" />
+      <div className="relative h-full flex flex-col">
+        {/* Scrollable columns container */}
+        <div
+          ref={scrollContainerRef}
+          className="flex gap-4 md:gap-6 p-4 md:p-6 flex-1 overflow-x-auto snap-x snap-mandatory md:snap-none touch-pan-x"
+        >
+          {COLUMNS.map((column, index) => (
+            <KanbanColumn
+              key={column.id}
+              id={column.id}
+              title={column.title}
+              cards={getCardsByStatus(column.id)}
+              animationDelay={index}
+            />
+          ))}
+          {/* Spacer for mobile scroll padding */}
+          <div className="w-4 md:w-0 flex-shrink-0" />
+        </div>
+
+        {/* Column indicator dots - mobile only */}
+        <div className="flex md:hidden justify-center gap-2 pb-4 pt-2 bg-gradient-to-t from-background to-transparent">
+          {COLUMNS.map((column, index) => (
+            <button
+              key={column.id}
+              type="button"
+              onClick={() => scrollToColumn(index)}
+              onTouchEnd={(e) => {
+                e.stopPropagation();
+                scrollToColumn(index);
+              }}
+              className={cn(
+                'w-2 h-2 rounded-full transition-all duration-300 touch-manipulation',
+                activeColumnIndex === index
+                  ? 'bg-accent w-6'
+                  : 'bg-border hover:bg-text-dim'
+              )}
+              aria-label={`Go to ${column.title} column`}
+            />
+          ))}
+        </div>
       </div>
 
       <DragOverlay dropAnimation={{

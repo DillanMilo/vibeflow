@@ -1,23 +1,21 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
 import { KanbanBoard } from '@/components/kanban/KanbanBoard';
 import { Sidebar } from '@/components/sidebar/Sidebar';
 import { cn } from '@/lib/utils';
+import { PROJECT_COLORS } from '@/types';
 
 type MobileView = 'board' | 'tasks' | 'notes';
 
 function LoadingSkeleton() {
   return (
     <div className="flex flex-col h-screen bg-background">
-      {/* Header skeleton */}
       <header className="flex-shrink-0 h-14 md:h-16 border-b border-border-subtle px-4 md:px-6 flex items-center">
         <div className="h-6 w-32 shimmer rounded" />
       </header>
-
       <div className="flex flex-1 overflow-hidden">
-        {/* Main content skeleton */}
         <main className="flex-1 flex gap-4 md:gap-6 p-4 md:p-6 overflow-x-auto">
           {[1, 2, 3].map((i) => (
             <div key={i} className="w-72 md:w-80 flex-shrink-0 animate-fade-in-up" style={{ animationDelay: `${i * 100}ms` }}>
@@ -35,8 +33,6 @@ function LoadingSkeleton() {
             </div>
           ))}
         </main>
-
-        {/* Sidebar skeleton - hidden on mobile */}
         <aside className="hidden md:flex w-[340px] border-l border-border-subtle bg-background-elevated animate-slide-in flex-col">
           <div className="p-5 border-b border-border-subtle">
             <div className="h-5 w-28 shimmer rounded mb-4" />
@@ -48,9 +44,223 @@ function LoadingSkeleton() {
           </div>
         </aside>
       </div>
-
-      {/* Mobile nav skeleton */}
       <div className="md:hidden h-16 border-t border-border-subtle bg-background-elevated" />
+    </div>
+  );
+}
+
+function ProjectSelector() {
+  const { state, dispatch, activeProject } = useApp();
+  const [isOpen, setIsOpen] = useState(false);
+  const [isManaging, setIsManaging] = useState(false);
+  const [newProjectName, setNewProjectName] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState('');
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleAddProject = () => {
+    if (!newProjectName.trim()) return;
+    dispatch({ type: 'ADD_PROJECT', payload: { name: newProjectName.trim() } });
+    setNewProjectName('');
+  };
+
+  const handleSelectProject = (id: string) => {
+    dispatch({ type: 'SET_ACTIVE_PROJECT', payload: id });
+    setIsOpen(false);
+  };
+
+  const handleDeleteProject = (id: string) => {
+    if (state.projects.length <= 1) return; // Don't delete last project
+    dispatch({ type: 'DELETE_PROJECT', payload: id });
+  };
+
+  const handleStartEdit = (id: string, name: string) => {
+    setEditingId(id);
+    setEditingName(name);
+  };
+
+  const handleSaveEdit = () => {
+    if (!editingId || !editingName.trim()) return;
+    dispatch({
+      type: 'UPDATE_PROJECT',
+      payload: { id: editingId, updates: { name: editingName.trim() } },
+    });
+    setEditingId(null);
+    setEditingName('');
+  };
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      {/* Project selector button */}
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className={cn(
+          'flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all duration-200',
+          'hover:bg-surface-hover active:bg-surface-active',
+          'text-sm font-medium text-text-primary',
+          isOpen && 'bg-surface-hover'
+        )}
+      >
+        {/* Project color dot */}
+        <div
+          className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+          style={{ backgroundColor: activeProject?.color || PROJECT_COLORS[0] }}
+        />
+        <span className="truncate max-w-[120px] md:max-w-[180px]">
+          {activeProject?.name || 'Select Project'}
+        </span>
+        <svg
+          className={cn('w-4 h-4 text-text-muted transition-transform', isOpen && 'rotate-180')}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {/* Dropdown */}
+      {isOpen && (
+        <div className="absolute top-full left-0 mt-2 w-72 bg-background-elevated border border-border rounded-xl shadow-lg z-50 animate-fade-in overflow-hidden">
+          {/* Project list */}
+          <div className="max-h-64 overflow-y-auto">
+            {state.projects.map((project) => (
+              <div
+                key={project.id}
+                className={cn(
+                  'group flex items-center gap-3 px-3 py-2.5 transition-colors',
+                  project.id === activeProject?.id
+                    ? 'bg-accent-subtle'
+                    : 'hover:bg-surface-hover'
+                )}
+              >
+                {editingId === project.id ? (
+                  <div className="flex-1 flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={editingName}
+                      onChange={(e) => setEditingName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSaveEdit();
+                        if (e.key === 'Escape') setEditingId(null);
+                      }}
+                      autoFocus
+                      className="flex-1 bg-background border border-border-accent rounded px-2 py-1 text-sm focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSaveEdit}
+                      className="p-1 text-success hover:bg-success-subtle rounded"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectProject(project.id)}
+                      className="flex-1 flex items-center gap-3 text-left"
+                    >
+                      <div
+                        className="w-3 h-3 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: project.color || PROJECT_COLORS[0] }}
+                      />
+                      <span className="text-sm text-text-primary truncate">{project.name}</span>
+                      {project.id === activeProject?.id && (
+                        <svg className="w-4 h-4 text-accent ml-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </button>
+                    {isManaging && (
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handleStartEdit(project.id, project.name)}
+                          className="p-1 text-text-muted hover:text-accent hover:bg-accent-subtle rounded"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                          </svg>
+                        </button>
+                        {state.projects.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteProject(project.id)}
+                            className="p-1 text-text-muted hover:text-danger hover:bg-danger-subtle rounded"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Divider */}
+          <div className="border-t border-border" />
+
+          {/* Add new project */}
+          <div className="p-3">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newProjectName}
+                onChange={(e) => setNewProjectName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleAddProject();
+                }}
+                placeholder="New project name..."
+                className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-border-accent"
+              />
+              <button
+                type="button"
+                onClick={handleAddProject}
+                disabled={!newProjectName.trim()}
+                className={cn(
+                  'px-3 py-2 rounded-lg text-sm font-medium transition-all',
+                  'bg-accent text-background hover:bg-accent-hover',
+                  'disabled:opacity-40 disabled:cursor-not-allowed'
+                )}
+              >
+                Add
+              </button>
+            </div>
+          </div>
+
+          {/* Manage toggle */}
+          <div className="border-t border-border px-3 py-2">
+            <button
+              type="button"
+              onClick={() => setIsManaging(!isManaging)}
+              className="w-full text-xs text-text-muted hover:text-text-secondary text-center transition-colors"
+            >
+              {isManaging ? 'Done managing' : 'Manage projects'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -74,6 +284,12 @@ function Header() {
           <span className="font-semibold text-text-primary">vibe</span>
           <span className="font-display italic text-accent">flow</span>
         </h1>
+
+        {/* Divider */}
+        <div className="hidden md:block w-px h-6 bg-border-subtle" />
+
+        {/* Project selector */}
+        <ProjectSelector />
       </div>
 
       {/* Status indicator - hidden on mobile */}

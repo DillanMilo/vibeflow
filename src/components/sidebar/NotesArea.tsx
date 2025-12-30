@@ -5,16 +5,16 @@ import { useApp } from '@/context/AppContext';
 import { cn } from '@/lib/utils';
 
 export function NotesArea() {
-  const { state, dispatch } = useApp();
-  const [localNotes, setLocalNotes] = useState(state.notes);
+  const { notes, dispatch } = useApp();
+  const [localNotes, setLocalNotes] = useState(notes);
   const [isSaved, setIsSaved] = useState(true);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Sync local state when hydrated state changes
   useEffect(() => {
     // Defer state update to avoid synchronous setState in effect
-    queueMicrotask(() => setLocalNotes(state.notes));
-  }, [state.notes]);
+    queueMicrotask(() => setLocalNotes(notes));
+  }, [notes]);
 
   const handleChange = (value: string) => {
     setLocalNotes(value);

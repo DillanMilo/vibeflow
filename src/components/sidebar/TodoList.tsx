@@ -5,7 +5,7 @@ import { useApp } from '@/context/AppContext';
 import { cn } from '@/lib/utils';
 
 export function TodoList() {
-  const { state, dispatch } = useApp();
+  const { todos, dispatch } = useApp();
   const [newTodo, setNewTodo] = useState('');
 
   const handleAddTodo = () => {
@@ -21,8 +21,8 @@ export function TodoList() {
     }
   };
 
-  const completedCount = state.todos.filter(t => t.completed).length;
-  const totalCount = state.todos.length;
+  const completedCount = todos.filter(t => t.completed).length;
+  const totalCount = todos.length;
 
   return (
     <div className="flex flex-col h-full">
@@ -72,7 +72,7 @@ export function TodoList() {
 
       {/* Tasks list */}
       <div className="flex-1 overflow-y-auto -mx-2 px-2">
-        {state.todos.length === 0 ? (
+        {todos.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 md:py-8 text-center">
             <div className="w-14 h-14 md:w-12 md:h-12 rounded-xl bg-surface/50 flex items-center justify-center mb-3">
               <svg className="w-6 h-6 md:w-5 md:h-5 text-text-dim" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
@@ -84,7 +84,7 @@ export function TodoList() {
           </div>
         ) : (
           <div className="space-y-1">
-            {state.todos.map((todo, index) => (
+            {todos.map((todo, index) => (
               <div
                 key={todo.id}
                 className={cn(
