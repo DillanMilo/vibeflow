@@ -52,10 +52,10 @@ function LoadingSkeleton() {
 function ProjectSelector() {
   const { state, dispatch, activeProject } = useApp();
   const [isOpen, setIsOpen] = useState(false);
-  const [isManaging, setIsManaging] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
+  const [colorPickerId, setColorPickerId] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown when clicking outside
@@ -63,6 +63,8 @@ function ProjectSelector() {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false);
+        setEditingId(null);
+        setColorPickerId(null);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -76,21 +78,26 @@ function ProjectSelector() {
   };
 
   const handleSelectProject = (id: string) => {
+    if (editingId || colorPickerId) return; // Don't select while editing
     dispatch({ type: 'SET_ACTIVE_PROJECT', payload: id });
     setIsOpen(false);
   };
 
-  const handleDeleteProject = (id: string) => {
-    if (state.projects.length <= 1) return; // Don't delete last project
+  const handleDeleteProject = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (state.projects.length <= 1) return;
     dispatch({ type: 'DELETE_PROJECT', payload: id });
   };
 
-  const handleStartEdit = (id: string, name: string) => {
+  const handleStartEdit = (id: string, name: string, e: React.MouseEvent) => {
+    e.stopPropagation();
     setEditingId(id);
     setEditingName(name);
+    setColorPickerId(null);
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
     if (!editingId || !editingName.trim()) return;
     dispatch({
       type: 'UPDATE_PROJECT',
@@ -98,6 +105,20 @@ function ProjectSelector() {
     });
     setEditingId(null);
     setEditingName('');
+  };
+
+  const handleColorChange = (id: string, color: string) => {
+    dispatch({
+      type: 'UPDATE_PROJECT',
+      payload: { id, updates: { color } },
+    });
+    setColorPickerId(null);
+  };
+
+  const toggleColorPicker = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setColorPickerId(colorPickerId === id ? null : id);
+    setEditingId(null);
   };
 
   return (
@@ -113,7 +134,6 @@ function ProjectSelector() {
           isOpen && 'bg-surface-hover'
         )}
       >
-        {/* Project color dot */}
         <div
           className="w-2.5 h-2.5 rounded-full flex-shrink-0"
           style={{ backgroundColor: activeProject?.color || PROJECT_COLORS[0] }}
@@ -134,95 +154,148 @@ function ProjectSelector() {
 
       {/* Dropdown */}
       {isOpen && (
-        <div className="absolute top-full left-0 mt-2 w-72 bg-background-elevated border border-border rounded-xl shadow-lg z-50 animate-fade-in overflow-hidden">
+        <div
+          className="absolute top-full left-0 mt-2 w-80 border border-border rounded-xl shadow-xl z-50 overflow-hidden"
+          style={{ backgroundColor: '#18140f' }}
+        >
+          {/* Header */}
+          <div className="px-4 py-3 border-b border-border">
+            <h3 className="text-sm font-semibold text-text-primary">Projects</h3>
+            <p className="text-xs text-text-dim mt-0.5">Select or manage your projects</p>
+          </div>
+
           {/* Project list */}
-          <div className="max-h-64 overflow-y-auto">
+          <div className="max-h-72 overflow-y-auto">
             {state.projects.map((project) => (
               <div
                 key={project.id}
                 className={cn(
-                  'group flex items-center gap-3 px-3 py-2.5 transition-colors',
-                  project.id === activeProject?.id
-                    ? 'bg-accent-subtle'
-                    : 'hover:bg-surface-hover'
+                  'group relative border-b border-border/50 last:border-b-0',
+                  project.id === activeProject?.id ? 'bg-accent/10' : 'hover:bg-surface-hover'
                 )}
               >
+                {/* Editing mode */}
                 {editingId === project.id ? (
-                  <div className="flex-1 flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={editingName}
-                      onChange={(e) => setEditingName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleSaveEdit();
-                        if (e.key === 'Escape') setEditingId(null);
-                      }}
-                      autoFocus
-                      className="flex-1 bg-background border border-border-accent rounded px-2 py-1 text-sm focus:outline-none"
-                    />
+                  <div className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={editingName}
+                        onChange={(e) => setEditingName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleSaveEdit();
+                          if (e.key === 'Escape') setEditingId(null);
+                        }}
+                        autoFocus
+                        className="flex-1 bg-background border border-border-accent rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent/30"
+                        placeholder="Project name..."
+                      />
+                      <button
+                        type="button"
+                        onClick={handleSaveEdit}
+                        className="p-2 bg-success/20 text-success hover:bg-success/30 rounded-lg transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setEditingId(null); }}
+                        className="p-2 bg-surface hover:bg-surface-hover text-text-muted rounded-lg transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                ) : colorPickerId === project.id ? (
+                  /* Color picker mode */
+                  <div className="px-4 py-3">
+                    <p className="text-xs text-text-muted mb-2">Choose a color:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {PROJECT_COLORS.map((color) => (
+                        <button
+                          key={color}
+                          type="button"
+                          onClick={() => handleColorChange(project.id, color)}
+                          className={cn(
+                            'w-7 h-7 rounded-full transition-all hover:scale-110',
+                            project.color === color && 'ring-2 ring-offset-2 ring-offset-background ring-white/50'
+                          )}
+                          style={{ backgroundColor: color }}
+                        />
+                      ))}
+                    </div>
                     <button
                       type="button"
-                      onClick={handleSaveEdit}
-                      className="p-1 text-success hover:bg-success-subtle rounded"
+                      onClick={(e) => { e.stopPropagation(); setColorPickerId(null); }}
+                      className="mt-2 text-xs text-text-muted hover:text-text-secondary"
                     >
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                      </svg>
+                      Cancel
                     </button>
                   </div>
                 ) : (
-                  <>
+                  /* Normal display mode */
+                  <div
+                    className="flex items-center gap-3 px-4 py-3 cursor-pointer"
+                    onClick={() => handleSelectProject(project.id)}
+                  >
+                    {/* Color dot - clickable to change color */}
                     <button
                       type="button"
-                      onClick={() => handleSelectProject(project.id)}
-                      className="flex-1 flex items-center gap-3 text-left"
-                    >
-                      <div
-                        className="w-3 h-3 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: project.color || PROJECT_COLORS[0] }}
-                      />
-                      <span className="text-sm text-text-primary truncate">{project.name}</span>
-                      {project.id === activeProject?.id && (
-                        <svg className="w-4 h-4 text-accent ml-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      onClick={(e) => toggleColorPicker(project.id, e)}
+                      className="w-4 h-4 rounded-full flex-shrink-0 hover:ring-2 hover:ring-white/30 transition-all"
+                      style={{ backgroundColor: project.color || PROJECT_COLORS[0] }}
+                      title="Change color"
+                    />
+
+                    {/* Project name */}
+                    <span className="flex-1 text-sm text-text-primary truncate">
+                      {project.name}
+                    </span>
+
+                    {/* Active indicator */}
+                    {project.id === activeProject?.id && (
+                      <svg className="w-4 h-4 text-accent flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+
+                    {/* Action buttons - visible on hover */}
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        type="button"
+                        onClick={(e) => handleStartEdit(project.id, project.name, e)}
+                        className="p-1.5 text-text-muted hover:text-accent hover:bg-accent/20 rounded-md transition-colors"
+                        title="Edit name"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                         </svg>
-                      )}
-                    </button>
-                    {isManaging && (
-                      <div className="flex gap-1">
+                      </button>
+                      {state.projects.length > 1 && (
                         <button
                           type="button"
-                          onClick={() => handleStartEdit(project.id, project.name)}
-                          className="p-1 text-text-muted hover:text-accent hover:bg-accent-subtle rounded"
+                          onClick={(e) => handleDeleteProject(project.id, e)}
+                          className="p-1.5 text-text-muted hover:text-danger hover:bg-danger/20 rounded-md transition-colors"
+                          title="Delete project"
                         >
                           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                           </svg>
                         </button>
-                        {state.projects.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteProject(project.id)}
-                            className="p-1 text-text-muted hover:text-danger hover:bg-danger-subtle rounded"
-                          >
-                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </>
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
             ))}
           </div>
 
-          {/* Divider */}
-          <div className="border-t border-border" />
-
           {/* Add new project */}
-          <div className="p-3">
+          <div className="border-t border-border p-3" style={{ backgroundColor: '#141210' }}>
             <div className="flex gap-2">
               <input
                 type="text"
@@ -232,14 +305,14 @@ function ProjectSelector() {
                   if (e.key === 'Enter') handleAddProject();
                 }}
                 placeholder="New project name..."
-                className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-border-accent"
+                className="flex-1 bg-background border border-border rounded-lg px-3 py-2.5 text-sm text-text-primary placeholder:text-text-dim focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20"
               />
               <button
                 type="button"
                 onClick={handleAddProject}
                 disabled={!newProjectName.trim()}
                 className={cn(
-                  'px-3 py-2 rounded-lg text-sm font-medium transition-all',
+                  'px-4 py-2.5 rounded-lg text-sm font-medium transition-all',
                   'bg-accent text-background hover:bg-accent-hover',
                   'disabled:opacity-40 disabled:cursor-not-allowed'
                 )}
@@ -247,17 +320,6 @@ function ProjectSelector() {
                 Add
               </button>
             </div>
-          </div>
-
-          {/* Manage toggle */}
-          <div className="border-t border-border px-3 py-2">
-            <button
-              type="button"
-              onClick={() => setIsManaging(!isManaging)}
-              className="w-full text-xs text-text-muted hover:text-text-secondary text-center transition-colors"
-            >
-              {isManaging ? 'Done managing' : 'Manage projects'}
-            </button>
           </div>
         </div>
       )}
@@ -267,7 +329,7 @@ function ProjectSelector() {
 
 function Header() {
   return (
-    <header className="flex-shrink-0 h-14 md:h-16 border-b border-border-subtle bg-background/80 backdrop-blur-sm px-4 md:px-6 flex items-center justify-between animate-fade-in">
+    <header className="flex-shrink-0 h-14 md:h-16 border-b border-border-subtle bg-background px-4 md:px-6 flex items-center justify-between animate-fade-in">
       <div className="flex items-center gap-3 md:gap-4">
         {/* Logo mark */}
         <div className="relative">
