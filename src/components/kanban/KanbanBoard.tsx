@@ -7,6 +7,7 @@ import {
   closestCorners,
   KeyboardSensor,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   type DragStartEvent,
@@ -26,7 +27,13 @@ export function KanbanBoard() {
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8,
+        distance: 10,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 250,
+        tolerance: 5,
       },
     }),
     useSensor(KeyboardSensor, {
@@ -121,18 +128,24 @@ export function KanbanBoard() {
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex gap-4 p-6 h-full overflow-x-auto">
-        {COLUMNS.map((column) => (
+      <div className="flex gap-4 md:gap-6 p-4 md:p-6 h-full overflow-x-auto snap-x snap-mandatory md:snap-none touch-pan-x">
+        {COLUMNS.map((column, index) => (
           <KanbanColumn
             key={column.id}
             id={column.id}
             title={column.title}
             cards={getCardsByStatus(column.id)}
+            animationDelay={index}
           />
         ))}
+        {/* Spacer for mobile scroll padding */}
+        <div className="w-4 md:w-0 flex-shrink-0" />
       </div>
 
-      <DragOverlay>
+      <DragOverlay dropAnimation={{
+        duration: 200,
+        easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)',
+      }}>
         {activeCard ? <KanbanCard card={activeCard} overlay /> : null}
       </DragOverlay>
     </DndContext>

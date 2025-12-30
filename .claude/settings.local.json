@@ -15,7 +15,9 @@
       "Bash(curl:*)",
       "Bash(lsof:*)",
       "Bash(kill:*)",
-      "Bash(npm run dev:*)"
+      "Bash(npm run dev:*)",
+      "Skill(frontend-design)",
+      "Bash(pkill:*)"
     ]
   }
 }
