@@ -323,6 +323,21 @@ button:disabled {
   }
 }
 
+/* Dynamic viewport height support for mobile browsers */
+@supports (height: 100dvh) {
+  .h-screen-dynamic {
+    height: 100dvh;
+  }
+}
+
+/* Ensure minimum tap targets on mobile */
+@media (max-width: 767px) {
+  .mobile-tap-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
 /* Prevent body scroll when modal is open */
 body.modal-open {
   overflow: hidden;

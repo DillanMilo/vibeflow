@@ -11,7 +11,7 @@ type MobileView = 'board' | 'tasks' | 'notes';
 
 function LoadingSkeleton() {
   return (
-    <div className="flex flex-col h-screen bg-background">
+    <div className="flex flex-col h-screen h-[100dvh] bg-background">
       <header className="flex-shrink-0 h-14 md:h-16 border-b border-border-subtle px-4 md:px-6 flex items-center">
         <div className="h-6 w-32 shimmer rounded" />
       </header>
@@ -155,7 +155,7 @@ function ProjectSelector() {
       {/* Dropdown */}
       {isOpen && (
         <div
-          className="absolute top-full left-0 mt-2 w-80 border border-border rounded-xl shadow-xl z-50 overflow-hidden"
+          className="absolute top-full left-0 mt-2 w-[calc(100vw-2rem)] md:w-80 max-w-80 border border-border rounded-xl shadow-xl z-50 overflow-hidden"
           style={{ backgroundColor: '#18140f' }}
         >
           {/* Header */}
@@ -263,8 +263,8 @@ function ProjectSelector() {
                       </svg>
                     )}
 
-                    {/* Action buttons - visible on hover */}
-                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {/* Action buttons - always visible on mobile, hover on desktop */}
+                    <div className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                       <button
                         type="button"
                         onClick={(e) => handleStartEdit(project.id, project.name, e)}
@@ -436,7 +436,7 @@ export default function Home() {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-background overflow-hidden">
+    <div className="flex flex-col h-screen h-[100dvh] bg-background overflow-hidden">
       <Header />
 
       {/* Desktop layout */}
