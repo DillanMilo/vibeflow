@@ -121,6 +121,12 @@ function ProjectSelector() {
     setEditingId(null);
   };
 
+  const handleInputFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    // Prevent iOS from auto-scrolling the input into view in PWA mode
+    // This prevents the keyboard jump issue on iPad
+    e.target.scrollIntoView({ behavior: 'instant', block: 'nearest' });
+  };
+
   return (
     <div className="relative" ref={dropdownRef}>
       {/* Project selector button */}
@@ -186,6 +192,7 @@ function ProjectSelector() {
                           if (e.key === 'Enter') handleSaveEdit();
                           if (e.key === 'Escape') setEditingId(null);
                         }}
+                        onFocus={handleInputFocus}
                         autoFocus
                         className="flex-1 bg-background border border-border-accent rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent/30"
                         placeholder="Project name..."
@@ -311,6 +318,7 @@ function ProjectSelector() {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleAddProject();
                 }}
+                onFocus={handleInputFocus}
                 placeholder="New project name..."
                 className="flex-1 bg-background border border-border rounded-lg px-3 py-2.5 text-sm text-text-primary placeholder:text-text-dim focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20"
               />
