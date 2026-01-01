@@ -152,10 +152,10 @@ function ProjectSelector() {
         </svg>
       </button>
 
-      {/* Dropdown - uses absolute positioning for iOS keyboard compatibility */}
+      {/* Dropdown - fixed on mobile for full display, absolute on desktop */}
       {isOpen && (
         <div
-          className="absolute top-full left-0 md:left-0 right-0 md:right-auto mt-2 md:w-80 mx-4 md:mx-0 border border-border rounded-xl shadow-2xl z-[9999] overflow-hidden"
+          className="fixed md:absolute top-14 md:top-full left-4 md:left-0 right-4 md:right-auto md:mt-2 md:w-80 border border-border rounded-xl shadow-2xl z-[9999] overflow-hidden"
           style={{ backgroundColor: '#18140f' }}
         >
           {/* Header */}
@@ -371,7 +371,7 @@ function MobileNav({ activeView, onViewChange }: { activeView: MobileView; onVie
       id: 'board',
       label: 'Board',
       icon: (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
         </svg>
       ),
@@ -380,7 +380,7 @@ function MobileNav({ activeView, onViewChange }: { activeView: MobileView; onVie
       id: 'tasks',
       label: 'Tasks',
       icon: (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
         </svg>
       ),
@@ -389,7 +389,7 @@ function MobileNav({ activeView, onViewChange }: { activeView: MobileView; onVie
       id: 'notes',
       label: 'Notes',
       icon: (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
           <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
         </svg>
       ),
