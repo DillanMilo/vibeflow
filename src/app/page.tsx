@@ -11,7 +11,7 @@ type MobileView = 'board' | 'tasks' | 'notes';
 
 function LoadingSkeleton() {
   return (
-    <div className="flex flex-col h-screen bg-background">
+    <div className="flex flex-col h-dvh bg-background">
       <header className="flex-shrink-0 h-14 md:h-16 border-b border-border-subtle px-4 md:px-6 flex items-center">
         <div className="h-6 w-32 shimmer rounded" />
       </header>
@@ -152,10 +152,10 @@ function ProjectSelector() {
         </svg>
       </button>
 
-      {/* Dropdown - uses fixed positioning on mobile for better stacking */}
+      {/* Dropdown - uses absolute positioning for iOS keyboard compatibility */}
       {isOpen && (
         <div
-          className="fixed md:absolute top-14 md:top-full left-4 md:left-0 right-4 md:right-auto md:mt-2 md:w-80 border border-border rounded-xl shadow-2xl z-[9999] overflow-hidden"
+          className="absolute top-full left-0 md:left-0 right-0 md:right-auto mt-2 md:w-80 mx-4 md:mx-0 border border-border rounded-xl shadow-2xl z-[9999] overflow-hidden"
           style={{ backgroundColor: '#18140f' }}
         >
           {/* Header */}
@@ -436,7 +436,7 @@ export default function Home() {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-background overflow-hidden">
+    <div className="flex flex-col h-dvh bg-background overflow-hidden">
       <Header />
 
       {/* Desktop layout */}

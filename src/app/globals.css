@@ -323,9 +323,8 @@ button:disabled {
   }
 }
 
-/* Prevent body scroll when modal is open */
+/* Prevent body scroll when modal is open - iOS keyboard compatible */
 body.modal-open {
   overflow: hidden;
-  position: fixed;
-  width: 100%;
+  height: 100dvh;
 }
