@@ -155,7 +155,7 @@ function ProjectSelector() {
       {/* Dropdown */}
       {isOpen && (
         <div
-          className="absolute top-full left-0 mt-2 w-80 border border-border rounded-xl shadow-xl z-50 overflow-hidden"
+          className="absolute top-full left-0 mt-2 w-[calc(100vw-2rem)] sm:w-80 max-w-80 border border-border rounded-xl shadow-xl z-50 overflow-hidden"
           style={{ backgroundColor: '#18140f' }}
         >
           {/* Header */}
@@ -263,8 +263,8 @@ function ProjectSelector() {
                       </svg>
                     )}
 
-                    {/* Action buttons - visible on hover */}
-                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {/* Action buttons - always visible on mobile, hover on desktop */}
+                    <div className="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                       <button
                         type="button"
                         onClick={(e) => handleStartEdit(project.id, project.name, e)}
@@ -329,7 +329,7 @@ function ProjectSelector() {
 
 function Header() {
   return (
-    <header className="flex-shrink-0 h-14 md:h-16 border-b border-border-subtle bg-background px-4 md:px-6 flex items-center justify-between animate-fade-in">
+    <header className="flex-shrink-0 h-14 md:h-16 border-b border-border-subtle bg-background px-4 md:px-6 flex items-center justify-between animate-fade-in relative z-50">
       <div className="flex items-center gap-3 md:gap-4">
         {/* Logo mark */}
         <div className="relative">
