@@ -71,14 +71,14 @@ export function KanbanColumn({ id, title, cards, animationDelay = 0 }: KanbanCol
   return (
     <div
       className={cn(
-        'flex flex-col flex-shrink-0 animate-fade-in-up',
+        'flex flex-col flex-shrink-0 animate-fade-in-up h-full max-h-[calc(100vh-180px)] md:max-h-[calc(100vh-140px)]',
         'w-[280px] md:w-80', // Responsive width
         'snap-center md:snap-align-none' // Snap on mobile
       )}
       style={{ animationDelay: `${animationDelay * 100}ms` }}
     >
       {/* Column header */}
-      <div className="flex items-center justify-between mb-3 md:mb-4 px-1">
+      <div className="flex items-center justify-between mb-3 md:mb-4 px-1 flex-shrink-0">
         <div className="flex items-center gap-2 md:gap-3">
           <div className={cn('status-dot', config.dotClass)} />
           <h3 className="text-xs md:text-sm font-medium text-text-secondary tracking-wide uppercase">
@@ -94,20 +94,24 @@ export function KanbanColumn({ id, title, cards, animationDelay = 0 }: KanbanCol
       <div
         ref={setNodeRef}
         className={cn(
-          'flex-1 p-2 md:p-3 rounded-xl md:rounded-2xl min-h-[200px] transition-all duration-200',
+          'flex-1 flex flex-col p-2 md:p-3 rounded-xl md:rounded-2xl min-h-[200px] transition-all duration-200 overflow-hidden',
           'bg-surface/30 border border-border-subtle',
           isOver && 'bg-surface/60 border-border-accent shadow-lg'
         )}
       >
-        <SortableContext items={cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
-          <div className="space-y-2 md:space-y-3">
-            {cards.map((card, index) => (
-              <KanbanCard key={card.id} card={card} index={index} />
-            ))}
-          </div>
-        </SortableContext>
+        {/* Scrollable cards container */}
+        <div className="flex-1 overflow-y-auto -mx-1 px-1 min-h-0">
+          <SortableContext items={cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
+            <div className="space-y-2 md:space-y-3">
+              {cards.map((card, index) => (
+                <KanbanCard key={card.id} card={card} index={index} />
+              ))}
+            </div>
+          </SortableContext>
+        </div>
 
         {/* Add card form */}
+        <div className="flex-shrink-0">
         {isAdding ? (
           <div className="mt-2 md:mt-3 bg-surface border border-border rounded-lg md:rounded-xl p-3 md:p-4 shadow-md animate-fade-in">
             <input
@@ -169,6 +173,7 @@ export function KanbanColumn({ id, title, cards, animationDelay = 0 }: KanbanCol
             Add card
           </button>
         )}
+        </div>
       </div>
     </div>
   );
