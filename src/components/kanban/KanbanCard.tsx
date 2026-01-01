@@ -86,6 +86,12 @@ export function KanbanCard({ card, overlay, index = 0 }: KanbanCardProps) {
     }
   };
 
+  const handleInputFocus = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    // Prevent iOS from auto-scrolling the input into view in PWA mode
+    // This prevents the keyboard jump issue on iPad
+    e.target.scrollIntoView({ behavior: 'instant', block: 'nearest' });
+  };
+
   if (isEditing) {
     return (
       <div className="bg-surface border border-border-accent rounded-lg md:rounded-xl p-3 md:p-4 shadow-lg animate-fade-in">
@@ -94,6 +100,7 @@ export function KanbanCard({ card, overlay, index = 0 }: KanbanCardProps) {
           value={editTitle}
           onChange={(e) => setEditTitle(e.target.value)}
           onKeyDown={handleKeyDown}
+          onFocus={handleInputFocus}
           placeholder="Card title"
           autoFocus
           className="w-full bg-transparent text-sm text-text-primary placeholder:text-text-dim focus:outline-none mb-2 md:mb-3 font-medium"
@@ -102,6 +109,7 @@ export function KanbanCard({ card, overlay, index = 0 }: KanbanCardProps) {
           value={editDescription}
           onChange={(e) => setEditDescription(e.target.value)}
           onKeyDown={handleKeyDown}
+          onFocus={handleInputFocus}
           placeholder="Add details... (optional)"
           rows={2}
           className="w-full bg-transparent text-xs text-text-secondary placeholder:text-text-dim resize-none focus:outline-none mb-3 md:mb-4"

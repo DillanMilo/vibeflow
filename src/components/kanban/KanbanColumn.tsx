@@ -68,6 +68,12 @@ export function KanbanColumn({ id, title, cards, animationDelay = 0 }: KanbanCol
     }
   };
 
+  const handleInputFocus = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    // Prevent iOS from auto-scrolling the input into view in PWA mode
+    // This prevents the keyboard jump issue on iPad
+    e.target.scrollIntoView({ behavior: 'instant', block: 'nearest' });
+  };
+
   return (
     <div
       className={cn(
@@ -119,6 +125,7 @@ export function KanbanColumn({ id, title, cards, animationDelay = 0 }: KanbanCol
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
               onKeyDown={handleKeyDown}
+              onFocus={handleInputFocus}
               placeholder="What needs to be done?"
               autoFocus
               className="w-full bg-transparent text-sm text-text-primary placeholder:text-text-dim focus:outline-none mb-2 md:mb-3 font-medium"
@@ -127,6 +134,7 @@ export function KanbanColumn({ id, title, cards, animationDelay = 0 }: KanbanCol
               value={newDescription}
               onChange={(e) => setNewDescription(e.target.value)}
               onKeyDown={handleKeyDown}
+              onFocus={handleInputFocus}
               placeholder="Add details... (optional)"
               rows={2}
               className="w-full bg-transparent text-xs text-text-secondary placeholder:text-text-dim resize-none focus:outline-none mb-3 md:mb-4"
