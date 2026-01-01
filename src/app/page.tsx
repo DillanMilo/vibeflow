@@ -152,10 +152,10 @@ function ProjectSelector() {
         </svg>
       </button>
 
-      {/* Dropdown */}
+      {/* Dropdown - uses fixed positioning on mobile for better stacking */}
       {isOpen && (
         <div
-          className="absolute top-full left-0 mt-2 w-[calc(100vw-2rem)] sm:w-80 max-w-80 border border-border rounded-xl shadow-xl z-50 overflow-hidden"
+          className="fixed md:absolute top-14 md:top-full left-4 md:left-0 right-4 md:right-auto md:mt-2 md:w-80 border border-border rounded-xl shadow-2xl z-[9999] overflow-hidden"
           style={{ backgroundColor: '#18140f' }}
         >
           {/* Header */}
