@@ -7,12 +7,21 @@ import {
   useEffect,
   useState,
   useRef,
+  useCallback,
   type ReactNode,
   type Dispatch,
 } from 'react';
 import { generateId } from '@/lib/utils';
 import type { AppState, KanbanCard, KanbanStatus, TodoItem, Id, Project } from '@/types';
 import { STORAGE_KEY, PROJECT_COLORS } from '@/types';
+import { useAuth } from './AuthContext';
+import {
+  fetchUserData,
+  createProject as dbCreateProject,
+  migrateLocalStorageToSupabase,
+  syncToSupabase,
+} from '@/lib/supabase/sync';
+import { useRealtimeSync } from '@/hooks/useRealtimeSync';
 
 // Migration: old storage key for migrating existing data
 const OLD_STORAGE_KEY = 'vibeflow-data';
@@ -257,6 +266,8 @@ interface AppContextType {
   state: AppState;
   dispatch: Dispatch<Action>;
   isHydrated: boolean;
+  isSyncing: boolean;
+  syncError: string | null;
   // Convenience getters for active project
   activeProject: Project | null;
   cards: KanbanCard[];
@@ -267,22 +278,42 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
+  const { user, isLoading: authLoading } = useAuth();
   const [state, dispatch] = useReducer(appReducer, initialState);
   const [isHydrated, setIsHydrated] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
   const hasHydrated = useRef(false);
+  const previousStateRef = useRef<AppState>(initialState);
 
-  // Load from localStorage on mount (once only)
-  useEffect(() => {
-    if (hasHydrated.current) return;
-    hasHydrated.current = true;
+  // Handle realtime updates from other devices
+  const handleRealtimeUpdate = useCallback((newState: AppState) => {
+    // Preserve current activeProjectId if the project still exists
+    const activeId = state.activeProjectId;
+    const projectExists = newState.projects.some(p => p.id === activeId);
 
+    dispatch({
+      type: 'HYDRATE',
+      payload: {
+        ...newState,
+        activeProjectId: projectExists ? activeId : newState.activeProjectId,
+      },
+    });
+  }, [state.activeProjectId]);
+
+  // Set up realtime subscriptions
+  useRealtimeSync(user?.id || null, handleRealtimeUpdate);
+
+  // Helper to load from localStorage
+  const loadFromLocalStorage = useCallback(() => {
     try {
       // Try to load new format first
-      let stored = localStorage.getItem(STORAGE_KEY);
+      const stored = localStorage.getItem(STORAGE_KEY);
 
       if (stored) {
         const parsed = JSON.parse(stored);
         dispatch({ type: 'HYDRATE', payload: parsed });
+        return parsed;
       } else {
         // Try to migrate from old format
         const oldStored = localStorage.getItem(OLD_STORAGE_KEY);
@@ -306,8 +337,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
           };
 
           dispatch({ type: 'HYDRATE', payload: migratedState });
-          // Clean up old storage
           localStorage.removeItem(OLD_STORAGE_KEY);
+          return migratedState;
         } else {
           // Fresh start - create default project
           const defaultProject = createDefaultProject('My Project');
@@ -316,6 +347,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             activeProjectId: defaultProject.id,
           };
           dispatch({ type: 'HYDRATE', payload: freshState });
+          return freshState;
         }
       }
     } catch (e) {
@@ -327,21 +359,83 @@ export function AppProvider({ children }: { children: ReactNode }) {
         activeProjectId: defaultProject.id,
       };
       dispatch({ type: 'HYDRATE', payload: freshState });
+      return freshState;
     }
-
-    queueMicrotask(() => setIsHydrated(true));
   }, []);
 
-  // Save to localStorage on state changes (after hydration)
+  // Initial data load
+  useEffect(() => {
+    if (hasHydrated.current || authLoading) return;
+
+    const loadData = async () => {
+      if (user) {
+        // User is authenticated - load from Supabase
+        try {
+          setIsSyncing(true);
+          setSyncError(null);
+          const serverState = await fetchUserData(user.id);
+
+          // Check if there's localStorage data to migrate
+          const localData = localStorage.getItem(STORAGE_KEY);
+          if (localData && serverState.projects.length === 0) {
+            // Migrate localStorage data to Supabase
+            const parsedLocalData = JSON.parse(localData);
+            await migrateLocalStorageToSupabase(user.id, parsedLocalData);
+            const migratedState = await fetchUserData(user.id);
+            dispatch({ type: 'HYDRATE', payload: migratedState });
+            localStorage.removeItem(STORAGE_KEY);
+            previousStateRef.current = migratedState;
+          } else if (serverState.projects.length === 0) {
+            // No data anywhere - create default project
+            const defaultProject = createDefaultProject('My Project');
+            await dbCreateProject(user.id, defaultProject);
+            const newState = { projects: [defaultProject], activeProjectId: defaultProject.id };
+            dispatch({ type: 'HYDRATE', payload: newState });
+            previousStateRef.current = newState;
+          } else {
+            dispatch({ type: 'HYDRATE', payload: serverState });
+            previousStateRef.current = serverState;
+          }
+        } catch (error) {
+          console.error('Failed to load data from Supabase:', error);
+          setSyncError('Failed to sync with server. Working offline.');
+          // Fall back to localStorage
+          const localState = loadFromLocalStorage();
+          previousStateRef.current = localState;
+        } finally {
+          setIsSyncing(false);
+        }
+      } else {
+        // No user - use localStorage only
+        const localState = loadFromLocalStorage();
+        previousStateRef.current = localState;
+      }
+
+      hasHydrated.current = true;
+      queueMicrotask(() => setIsHydrated(true));
+    };
+
+    loadData();
+  }, [user, authLoading, loadFromLocalStorage]);
+
+  // Sync changes to Supabase (and localStorage as backup)
   useEffect(() => {
     if (!isHydrated) return;
 
+    // Always save to localStorage as backup
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch (e) {
-      console.warn('Failed to save state to localStorage:', e);
+      console.warn('Failed to save to localStorage:', e);
     }
-  }, [state, isHydrated]);
+
+    // If user is authenticated, sync to Supabase
+    if (user && previousStateRef.current !== state) {
+      syncToSupabase(user.id, previousStateRef.current, state);
+    }
+
+    previousStateRef.current = state;
+  }, [state, isHydrated, user]);
 
   // Compute convenience values
   const activeProject = state.activeProjectId
@@ -352,6 +446,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     state,
     dispatch,
     isHydrated,
+    isSyncing,
+    syncError,
     activeProject,
     cards: activeProject?.cards || [],
     todos: activeProject?.todos || [],

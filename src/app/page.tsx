@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
+import { useAuth } from '@/context/AuthContext';
 import { KanbanBoard } from '@/components/kanban/KanbanBoard';
 import { Sidebar } from '@/components/sidebar/Sidebar';
 import { cn } from '@/lib/utils';
@@ -342,6 +343,98 @@ function ProjectSelector() {
   );
 }
 
+function UserMenu() {
+  const { user, signOut } = useAuth();
+  const [isOpen, setIsOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleSignOut = async () => {
+    await signOut();
+    setIsOpen(false);
+  };
+
+  if (!user) return null;
+
+  const email = user.email || 'User';
+  const initial = email.charAt(0).toUpperCase();
+
+  return (
+    <div className="relative" ref={menuRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className={cn(
+          'w-8 h-8 rounded-full bg-accent/20 text-accent font-medium text-sm',
+          'flex items-center justify-center transition-all hover:bg-accent/30',
+          isOpen && 'ring-2 ring-accent/50'
+        )}
+      >
+        {initial}
+      </button>
+
+      {isOpen && (
+        <div className="absolute right-0 mt-2 w-64 bg-surface border border-border rounded-xl shadow-xl z-50 overflow-hidden">
+          <div className="px-4 py-3 border-b border-border">
+            <p className="text-sm font-medium text-text-primary truncate">{email}</p>
+            <p className="text-xs text-text-muted mt-0.5">Signed in</p>
+          </div>
+          <div className="p-2">
+            <button
+              type="button"
+              onClick={handleSignOut}
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-hover rounded-lg transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+              Sign out
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SyncStatus() {
+  const { isSyncing, syncError } = useApp();
+
+  if (syncError) {
+    return (
+      <div className="flex items-center gap-2">
+        <div className="w-2 h-2 rounded-full bg-warning" />
+        <span>Offline</span>
+      </div>
+    );
+  }
+
+  if (isSyncing) {
+    return (
+      <div className="flex items-center gap-2">
+        <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
+        <span>Syncing...</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <div className="w-2 h-2 rounded-full bg-success animate-pulse" />
+      <span>All synced</span>
+    </div>
+  );
+}
+
 function Header() {
   return (
     <header className="flex-shrink-0 h-14 md:h-16 border-b border-border-subtle bg-background px-4 md:px-6 flex items-center justify-between animate-fade-in relative z-50">
@@ -369,12 +462,15 @@ function Header() {
         <ProjectSelector />
       </div>
 
-      {/* Status indicator - hidden on mobile */}
-      <div className="hidden md:flex items-center gap-3 text-sm text-text-muted">
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-success animate-pulse" />
-          <span>All synced</span>
+      {/* Right side - sync status and user menu */}
+      <div className="flex items-center gap-4">
+        {/* Status indicator - hidden on mobile */}
+        <div className="hidden md:flex items-center text-sm text-text-muted">
+          <SyncStatus />
         </div>
+
+        {/* User menu */}
+        <UserMenu />
       </div>
     </header>
   );
