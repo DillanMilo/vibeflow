@@ -133,7 +133,7 @@ function FeatureShowcase() {
           Heya,
           <br />
           <span className="font-display italic text-accent">
-            this is my project management tool I made
+            I built this to stay organized. LOL
           </span>
         </h1>
 
