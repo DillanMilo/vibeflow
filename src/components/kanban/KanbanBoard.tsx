@@ -7,7 +7,6 @@ import {
   closestCorners,
   KeyboardSensor,
   PointerSensor,
-  TouchSensor,
   useSensor,
   useSensors,
   type DragStartEvent,
@@ -25,18 +24,25 @@ export function KanbanBoard() {
   const { cards, dispatch } = useApp();
   const [activeCard, setActiveCard] = useState<KanbanCardType | null>(null);
   const [activeColumnIndex, setActiveColumnIndex] = useState(0);
+  const [isMobile, setIsMobile] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
+  // Detect mobile screen size
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Only enable drag-and-drop on desktop
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
         distance: 10,
-      },
-    }),
-    useSensor(TouchSensor, {
-      activationConstraint: {
-        delay: 250,
-        tolerance: 5,
       },
     }),
     useSensor(KeyboardSensor, {
@@ -154,9 +160,10 @@ export function KanbanBoard() {
     }
   };
 
+  // Disable drag-and-drop on mobile for better scrolling experience
   return (
     <DndContext
-      sensors={sensors}
+      sensors={isMobile ? [] : sensors}
       collisionDetection={closestCorners}
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}
