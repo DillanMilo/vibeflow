@@ -19,7 +19,7 @@ export function Sidebar({ view = 'all' }: SidebarProps) {
 
   if (view === 'notes') {
     return (
-      <div className="flex-1 p-4 md:p-5 overflow-hidden bg-background md:bg-background-elevated">
+      <div className="flex-1 flex flex-col p-4 md:p-5 overflow-hidden bg-background md:bg-background-elevated h-full">
         <NotesArea />
       </div>
     );
