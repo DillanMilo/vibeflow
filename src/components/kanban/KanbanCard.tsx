@@ -148,10 +148,10 @@ export function KanbanCard({ card, overlay, index = 0 }: KanbanCardProps) {
       style={style}
       className={cn(
         'group relative bg-surface border border-border rounded-lg md:rounded-xl p-3 md:p-4',
-        'cursor-grab active:cursor-grabbing',
+        'md:cursor-grab md:active:cursor-grabbing', // Only show grab cursor on desktop
         'transition-all duration-200',
         'hover:border-border-accent md:hover:shadow-md',
-        'active:scale-[0.98]',
+        'md:active:scale-[0.98]', // Only scale on desktop during drag
         isDragging && 'opacity-40 scale-[0.98]',
         overlay && 'shadow-xl rotate-2 border-accent/50 bg-surface/95 backdrop-blur-sm',
         !overlay && 'animate-fade-in'
