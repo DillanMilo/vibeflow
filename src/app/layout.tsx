@@ -26,6 +26,15 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "Vibeflow",
   description: "Project management for vibe coders",
+  icons: {
+    icon: "/icon.svg",
+    apple: "/apple-icon.svg",
+  },
+  openGraph: {
+    title: "Vibeflow",
+    description: "Project management for vibe coders",
+    type: "website",
+  },
 };
 
 export const viewport: Viewport = {
