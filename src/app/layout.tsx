@@ -25,14 +25,16 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: "Vibeflow",
-  description: "Project management for vibe coders",
+  description:
+    "Project management tool I made coz I was too cheap to subscribe to one.",
   icons: {
     icon: "/icon.svg",
     apple: "/apple-icon.svg",
   },
   openGraph: {
     title: "Vibeflow",
-    description: "Project management for vibe coders",
+    description:
+      "Project management tool I made coz I was too cheap to subscribe to one.",
     type: "website",
   },
 };
