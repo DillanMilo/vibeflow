@@ -225,9 +225,9 @@ export default function LoginPage() {
         {/* Mobile tagline */}
         <div className="lg:hidden text-center mb-10 animate-fade-in-up">
           <h2 className="text-2xl font-semibold text-text-primary mb-2">
-            Ship ideas,{" "}
+            Yo! <br />
             <span className="font-display italic text-accent">
-              not spreadsheets
+              I built this to stay organized and not Eff around.
             </span>
           </h2>
           <p className="text-sm text-text-muted">
