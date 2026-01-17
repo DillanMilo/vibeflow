@@ -171,9 +171,9 @@ function ProjectSelector() {
             <p className="text-xs text-text-dim mt-0.5">Select or manage your projects</p>
           </div>
 
-          {/* Project list */}
+          {/* Project list - sorted by todo count (highest first) */}
           <div className="max-h-72 overflow-y-auto">
-            {state.projects.map((project) => (
+            {[...state.projects].sort((a, b) => b.todos.length - a.todos.length).map((project) => (
               <div
                 key={project.id}
                 className={cn(
@@ -264,9 +264,9 @@ function ProjectSelector() {
                       <span className="text-sm text-text-primary truncate">
                         {project.name}
                       </span>
-                      {project.cards.filter(c => c.status === 'todo').length > 0 && (
+                      {project.todos.length > 0 && (
                         <span className="flex-shrink-0 text-xs font-medium px-1.5 py-0.5 rounded-md bg-accent/20 text-accent">
-                          {project.cards.filter(c => c.status === 'todo').length}
+                          {project.todos.length}
                         </span>
                       )}
                     </div>
