@@ -77,9 +77,8 @@ export function KanbanColumn({ id, title, cards, animationDelay = 0 }: KanbanCol
   return (
     <div
       className={cn(
-        'flex flex-col flex-shrink-0 animate-fade-in-up h-full max-h-[calc(100dvh-180px)] md:max-h-[calc(100dvh-140px)]',
-        'w-[280px] md:w-80', // Responsive width
-        'snap-center md:snap-align-none' // Snap on mobile
+        'flex flex-col flex-shrink-0 animate-fade-in-up md:h-full max-h-none md:max-h-[calc(100dvh-140px)]',
+        'w-full md:w-80' // Full width on mobile, fixed on desktop
       )}
       style={{ animationDelay: `${animationDelay * 100}ms` }}
     >

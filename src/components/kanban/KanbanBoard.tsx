@@ -180,7 +180,7 @@ export function KanbanBoard({ searchQuery = '' }: { searchQuery?: string }) {
         {/* Scrollable columns container */}
         <div
           ref={scrollContainerRef}
-          className="flex gap-4 md:gap-6 p-4 md:p-6 flex-1 overflow-x-auto snap-x snap-mandatory md:snap-none touch-pan-x"
+          className="flex flex-col md:flex-row gap-4 md:gap-6 p-4 md:p-6 flex-1 overflow-y-auto md:overflow-x-auto"
         >
           {COLUMNS.map((column, index) => (
             <KanbanColumn
@@ -191,12 +191,12 @@ export function KanbanBoard({ searchQuery = '' }: { searchQuery?: string }) {
               animationDelay={index}
             />
           ))}
-          {/* Spacer for mobile scroll padding */}
-          <div className="w-4 md:w-0 flex-shrink-0" />
+          {/* Spacer for scroll padding */}
+          <div className="h-4 md:h-0 md:w-0 flex-shrink-0" />
         </div>
 
-        {/* Column indicator dots - mobile only */}
-        <div className="flex md:hidden justify-center gap-2 pb-4 pt-2 bg-gradient-to-t from-background to-transparent">
+        {/* Column indicator dots - hidden since mobile uses vertical layout */}
+        <div className="hidden justify-center gap-2 pb-4 pt-2 bg-gradient-to-t from-background to-transparent">
           {COLUMNS.map((column, index) => (
             <button
               key={column.id}
