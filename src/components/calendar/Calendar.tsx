@@ -344,7 +344,7 @@ export function Calendar({ view = 'full' }: CalendarProps) {
   const selectedDueCards = selectedDate ? (cardsDueByDate[selectedDate] || []) : [];
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex flex-col md:h-full md:overflow-hidden">
       {/* Calendar header */}
       <div className="flex items-center justify-between px-1 mb-3 flex-shrink-0">
         <div>
@@ -511,7 +511,7 @@ export function Calendar({ view = 'full' }: CalendarProps) {
       </div>
 
       {/* Calendar grid */}
-      <div className="grid grid-cols-7 flex-1 min-h-0 gap-px bg-border-subtle/30 rounded-xl overflow-hidden border border-border-subtle">
+      <div className="grid grid-cols-7 md:flex-1 md:min-h-0 gap-px bg-border-subtle/30 rounded-xl overflow-hidden border border-border-subtle">
         {calendarDays.map((cell, i) => {
           const dayEvents = eventsByDate[cell.dateStr] || [];
           const dayGcalEvents = gcalEventsByDate[cell.dateStr] || [];

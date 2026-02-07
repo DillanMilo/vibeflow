@@ -6,11 +6,10 @@ import { useAuth } from '@/context/AuthContext';
 import { KanbanBoard } from '@/components/kanban/KanbanBoard';
 import { Sidebar } from '@/components/sidebar/Sidebar';
 import { Calendar } from '@/components/calendar/Calendar';
-import { ActivityTimeline } from '@/components/activity/ActivityTimeline';
 import { cn } from '@/lib/utils';
 import { PROJECT_COLORS } from '@/types';
 
-type MobileView = 'board' | 'tasks' | 'notes' | 'calendar' | 'activity';
+type MobileView = 'board' | 'tasks' | 'calendar' | 'notes';
 
 function LoadingSkeleton() {
   return (
@@ -47,7 +46,7 @@ function LoadingSkeleton() {
           </div>
         </aside>
       </div>
-      <div className="md:hidden h-16 border-t border-border-subtle bg-background-elevated" />
+      <div className="md:hidden h-[68px] border-t border-border-subtle bg-background-elevated" />
     </div>
   );
 }
@@ -607,7 +606,7 @@ function MobileNav({ activeView, onViewChange }: { activeView: MobileView; onVie
       id: 'board',
       label: 'Board',
       icon: (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
         </svg>
       ),
@@ -616,7 +615,7 @@ function MobileNav({ activeView, onViewChange }: { activeView: MobileView; onVie
       id: 'tasks',
       label: 'Tasks',
       icon: (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
         </svg>
       ),
@@ -625,7 +624,7 @@ function MobileNav({ activeView, onViewChange }: { activeView: MobileView; onVie
       id: 'calendar',
       label: 'Calendar',
       icon: (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
           <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
         </svg>
       ),
@@ -634,17 +633,8 @@ function MobileNav({ activeView, onViewChange }: { activeView: MobileView; onVie
       id: 'notes',
       label: 'Notes',
       icon: (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
           <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-        </svg>
-      ),
-    },
-    {
-      id: 'activity',
-      label: 'Activity',
-      icon: (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
       ),
     },
@@ -656,7 +646,7 @@ function MobileNav({ activeView, onViewChange }: { activeView: MobileView; onVie
   };
 
   return (
-    <nav className="md:hidden flex-shrink-0 h-16 border-t border-border-subtle bg-background-elevated safe-bottom z-50">
+    <nav className="md:hidden flex-shrink-0 h-[68px] border-t border-border-subtle bg-background-elevated safe-bottom z-50">
       <div className="flex h-full">
         {navItems.map((item) => (
           <button
@@ -665,7 +655,7 @@ function MobileNav({ activeView, onViewChange }: { activeView: MobileView; onVie
             onClick={handleNavClick(item.id)}
             onTouchEnd={handleNavClick(item.id)}
             className={cn(
-              'flex-1 flex flex-col items-center justify-center gap-1 transition-colors',
+              'flex-1 flex flex-col items-center justify-center gap-1 transition-colors min-h-[48px]',
               'touch-manipulation select-none',
               activeView === item.id
                 ? 'text-accent'
@@ -673,7 +663,7 @@ function MobileNav({ activeView, onViewChange }: { activeView: MobileView; onVie
             )}
           >
             {item.icon}
-            <span className="text-[10px] font-medium">{item.label}</span>
+            <span className="text-[11px] font-medium">{item.label}</span>
           </button>
         ))}
       </div>
@@ -684,7 +674,7 @@ function MobileNav({ activeView, onViewChange }: { activeView: MobileView; onVie
 export default function Home() {
   const { isHydrated } = useApp();
   const [mobileView, setMobileView] = useState<MobileView>('board');
-  const [desktopRightPanel, setDesktopRightPanel] = useState<'tasks' | 'notes' | 'calendar' | 'activity'>('tasks');
+  const [desktopRightPanel, setDesktopRightPanel] = useState<'tasks' | 'notes' | 'calendar'>('tasks');
   const [searchQuery, setSearchQuery] = useState('');
 
   if (!isHydrated) {
@@ -710,7 +700,6 @@ export default function Home() {
               { id: 'tasks' as const, label: 'Tasks' },
               { id: 'notes' as const, label: 'Notes' },
               { id: 'calendar' as const, label: 'Calendar' },
-              { id: 'activity' as const, label: 'Activity' },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -748,11 +737,6 @@ export default function Home() {
                 <Calendar />
               </div>
             )}
-            {desktopRightPanel === 'activity' && (
-              <div className="p-5 h-full overflow-hidden">
-                <ActivityTimeline />
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -770,18 +754,13 @@ export default function Home() {
           </div>
         )}
         {mobileView === 'calendar' && (
-          <div className="flex-1 overflow-hidden animate-fade-in p-4">
+          <div className="flex-1 overflow-y-auto animate-fade-in p-4">
             <Calendar />
           </div>
         )}
         {mobileView === 'notes' && (
           <div className="flex-1 overflow-hidden animate-fade-in">
             <Sidebar view="notes" />
-          </div>
-        )}
-        {mobileView === 'activity' && (
-          <div className="flex-1 overflow-hidden animate-fade-in p-4">
-            <ActivityTimeline />
           </div>
         )}
       </div>
