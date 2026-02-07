@@ -17,7 +17,9 @@
       "Bash(kill:*)",
       "Bash(npm run dev:*)",
       "Skill(frontend-design)",
-      "Bash(pkill:*)"
+      "Bash(pkill:*)",
+      "Bash(wc:*)",
+      "Bash(npx next build:*)"
     ]
   }
 }

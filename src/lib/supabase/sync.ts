@@ -25,6 +25,8 @@ function dbProjectToProject(dbProject: DbProject, cards: DbCard[], todos: DbTodo
       .filter(t => t.project_id === dbProject.id)
       .sort((a, b) => a.position - b.position)
       .map(dbTodoToTodo),
+    events: [],
+    activities: [],
   };
 }
 

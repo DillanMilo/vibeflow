@@ -398,3 +398,27 @@ body.modal-open {
   overflow: hidden;
   height: 100dvh;
 }
+
+/* Calendar grid hover effects */
+.calendar-cell:hover {
+  background-color: var(--surface-hover);
+}
+
+/* Time input dark mode fix */
+input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.7);
+}
+
+/* Panel tab active indicator animation */
+@keyframes tabSlide {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.tab-indicator {
+  animation: tabSlide 0.2s ease-out forwards;
+}
