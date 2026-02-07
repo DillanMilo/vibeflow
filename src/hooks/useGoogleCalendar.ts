@@ -166,6 +166,7 @@ export function useGoogleCalendar() {
       tokenClientRef.current = window.google.accounts.oauth2.initTokenClient({
         client_id: clientId,
         scope: SCOPES,
+        ux_mode: 'popup',
         callback: (response: google.accounts.oauth2.TokenResponse) => {
           if (response.error) {
             setState(s => ({ ...s, error: 'Failed to connect. Please try again.' }));
@@ -182,6 +183,23 @@ export function useGoogleCalendar() {
 
           setState(s => ({ ...s, isConnected: true, error: null }));
           fetchEvents(response.access_token);
+        },
+        error_callback: (error: { type: string; message?: string }) => {
+          if (error.type === 'popup_closed') {
+            return; // User closed the popup, not an error
+          }
+          if (error.type === 'popup_failed_to_open') {
+            setState(s => ({
+              ...s,
+              error: 'Popup was blocked. Please allow popups for this site and try again.',
+            }));
+            return;
+          }
+          // redirect_uri_mismatch and other origin errors surface here
+          setState(s => ({
+            ...s,
+            error: `Google sign-in failed: ${error.type}. Make sure "${window.location.origin}" is added as an Authorized JavaScript Origin in your Google Cloud Console OAuth client settings.`,
+          }));
         },
       });
     }
@@ -274,6 +292,9 @@ declare global {
             client_id: string;
             scope: string;
             callback: (response: google.accounts.oauth2.TokenResponse) => void;
+            error_callback?: (error: { type: string; message?: string }) => void;
+            ux_mode?: 'popup' | 'redirect';
+            redirect_uri?: string;
           }) => google.accounts.oauth2.TokenClient;
           revoke: (token: string, callback: () => void) => void;
         };

@@ -498,7 +498,23 @@ export function Calendar({ view = 'full' }: CalendarProps) {
       )}
 
       {gcal.error && (
-        <p className="text-[10px] text-danger mb-2 px-1 flex-shrink-0">{gcal.error}</p>
+        <div className="mb-3 p-3 rounded-xl border border-danger/30 bg-danger/5 flex-shrink-0 animate-fade-in">
+          <p className="text-xs text-danger">{gcal.error}</p>
+          {gcal.error.includes('Authorized JavaScript Origin') && (
+            <p className="text-[11px] text-text-muted mt-1.5">
+              In your{' '}
+              <a
+                href="https://console.cloud.google.com/apis/credentials"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[#4285f4] underline"
+              >
+                Google Cloud Console
+              </a>
+              , edit your OAuth 2.0 Client ID and add this site&apos;s URL to both &quot;Authorized JavaScript origins&quot; and &quot;Authorized redirect URIs&quot;.
+            </p>
+          )}
+        </div>
       )}
 
       {/* Day headers */}
