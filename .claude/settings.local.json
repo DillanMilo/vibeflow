@@ -19,7 +19,10 @@
       "Skill(frontend-design)",
       "Bash(pkill:*)",
       "Bash(wc:*)",
-      "Bash(npx next build:*)"
+      "Bash(npx next build:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ]
   }
 }
