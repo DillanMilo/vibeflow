@@ -227,7 +227,7 @@ export function Calendar({ view = 'full' }: CalendarProps) {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | undefined>(undefined);
   const [showForm, setShowForm] = useState(false);
-  const [showGcalSettings, setShowGcalSettings] = useState(false);
+  const [showGcalSetupInfo, setShowGcalSetupInfo] = useState(false);
 
   // Build a map of date -> events
   const eventsByDate = useMemo(() => {
@@ -387,11 +387,14 @@ export function Calendar({ view = 'full' }: CalendarProps) {
       </div>
 
       {/* Google Calendar integration */}
-      {gcal.hasClientId && !gcal.isConnected && !showGcalSettings && (
+      {!gcal.isConnected && (
         <button
           type="button"
           onClick={() => {
-            setShowGcalSettings(true);
+            if (!gcal.hasClientId) {
+              setShowGcalSetupInfo(true);
+              return;
+            }
             gcal.connect();
           }}
           disabled={gcal.isLoading}
@@ -422,6 +425,32 @@ export function Calendar({ view = 'full' }: CalendarProps) {
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
           </svg>
         </button>
+      )}
+
+      {/* Setup info when no client ID */}
+      {showGcalSetupInfo && !gcal.hasClientId && (
+        <div className="mb-3 p-3 rounded-xl border border-[#fbbc05]/30 bg-[#fbbc05]/5 flex-shrink-0 animate-fade-in">
+          <div className="flex items-start gap-2">
+            <svg className="w-4 h-4 text-[#fbbc05] mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div className="flex-1">
+              <p className="text-xs font-medium text-text-primary">Setup required</p>
+              <p className="text-[11px] text-text-muted mt-1">
+                Add <code className="px-1 py-0.5 bg-background rounded text-[10px] font-mono">NEXT_PUBLIC_GOOGLE_CLIENT_ID</code> to your <code className="px-1 py-0.5 bg-background rounded text-[10px] font-mono">.env.local</code> file to enable Google Calendar sync.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowGcalSetupInfo(false)}
+              className="p-1 text-text-dim hover:text-text-primary rounded transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Connected state - compact bar */}
