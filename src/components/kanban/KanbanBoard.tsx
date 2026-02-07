@@ -20,7 +20,7 @@ import { KanbanCard } from './KanbanCard';
 import { COLUMNS, type KanbanStatus, type KanbanCard as KanbanCardType } from '@/types';
 import { cn } from '@/lib/utils';
 
-export function KanbanBoard() {
+export function KanbanBoard({ searchQuery = '' }: { searchQuery?: string }) {
   const { cards, dispatch } = useApp();
   const [activeCard, setActiveCard] = useState<KanbanCardType | null>(null);
   const [activeColumnIndex, setActiveColumnIndex] = useState(0);
@@ -38,11 +38,12 @@ export function KanbanBoard() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Only enable drag-and-drop on desktop
+  // Always use the same number of sensors to avoid React hook size errors.
+  // On mobile, set an impossibly high distance so drag never activates.
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 10,
+        distance: isMobile ? 99999 : 10,
       },
     }),
     useSensor(KeyboardSensor, {
@@ -51,7 +52,13 @@ export function KanbanBoard() {
   );
 
   const getCardsByStatus = (status: KanbanStatus) => {
-    return cards.filter((card) => card.status === status);
+    const filtered = cards.filter((card) => card.status === status);
+    if (!searchQuery.trim()) return filtered;
+    const q = searchQuery.toLowerCase();
+    return filtered.filter((card) =>
+      card.title.toLowerCase().includes(q) ||
+      (card.description && card.description.toLowerCase().includes(q))
+    );
   };
 
   // Handle scroll to detect active column on mobile
@@ -163,7 +170,7 @@ export function KanbanBoard() {
   // Disable drag-and-drop on mobile for better scrolling experience
   return (
     <DndContext
-      sensors={isMobile ? [] : sensors}
+      sensors={sensors}
       collisionDetection={closestCorners}
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}

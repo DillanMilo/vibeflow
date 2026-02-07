@@ -5,7 +5,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useApp } from '@/context/AppContext';
 import { cn } from '@/lib/utils';
-import type { KanbanCard as KanbanCardType, KanbanStatus } from '@/types';
+import type { KanbanCard as KanbanCardType, KanbanStatus, CardPriority } from '@/types';
 
 interface KanbanCardProps {
   card: KanbanCardType;
@@ -22,11 +22,38 @@ const STATUS_LABELS: Record<KanbanStatus, string> = {
   'complete': 'Complete',
 };
 
+const PRIORITY_CONFIG: Record<CardPriority, { label: string; color: string; bg: string }> = {
+  low: { label: 'Low', color: 'text-[#5b9bd5]', bg: 'bg-[#5b9bd5]/15' },
+  medium: { label: 'Med', color: 'text-[#e5a54b]', bg: 'bg-[#e5a54b]/15' },
+  high: { label: 'High', color: 'text-[#ff7b7b]', bg: 'bg-[#ff7b7b]/15' },
+  urgent: { label: 'Urgent', color: 'text-[#ff4444]', bg: 'bg-[#ff4444]/20' },
+};
+
+function getDueDateInfo(dueDate: string): { label: string; isOverdue: boolean; isToday: boolean; isSoon: boolean } {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const due = new Date(dueDate + 'T00:00:00');
+  const diffDays = Math.ceil((due.getTime() - today.getTime()) / 86400000);
+
+  if (diffDays < 0) return { label: `${Math.abs(diffDays)}d overdue`, isOverdue: true, isToday: false, isSoon: false };
+  if (diffDays === 0) return { label: 'Due today', isOverdue: false, isToday: true, isSoon: false };
+  if (diffDays === 1) return { label: 'Due tomorrow', isOverdue: false, isToday: false, isSoon: true };
+  if (diffDays <= 3) return { label: `Due in ${diffDays}d`, isOverdue: false, isToday: false, isSoon: true };
+  return {
+    label: due.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+    isOverdue: false,
+    isToday: false,
+    isSoon: false,
+  };
+}
+
 export function KanbanCard({ card, overlay, index = 0 }: KanbanCardProps) {
   const { dispatch } = useApp();
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(card.title);
   const [editDescription, setEditDescription] = useState(card.description || '');
+  const [editPriority, setEditPriority] = useState<CardPriority | ''>(card.priority || '');
+  const [editDueDate, setEditDueDate] = useState(card.dueDate || '');
 
   const {
     attributes,
@@ -68,6 +95,8 @@ export function KanbanCard({ card, overlay, index = 0 }: KanbanCardProps) {
         updates: {
           title,
           description: editDescription.trim() || undefined,
+          priority: editPriority || undefined,
+          dueDate: editDueDate || undefined,
         },
       },
     });
@@ -82,15 +111,17 @@ export function KanbanCard({ card, overlay, index = 0 }: KanbanCardProps) {
     if (e.key === 'Escape') {
       setEditTitle(card.title);
       setEditDescription(card.description || '');
+      setEditPriority(card.priority || '');
+      setEditDueDate(card.dueDate || '');
       setIsEditing(false);
     }
   };
 
   const handleInputFocus = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    // Prevent iOS from auto-scrolling the input into view in PWA mode
-    // This prevents the keyboard jump issue on iPad
     e.target.scrollIntoView({ behavior: 'instant', block: 'nearest' });
   };
+
+  const dueDateInfo = card.dueDate && card.status !== 'complete' ? getDueDateInfo(card.dueDate) : null;
 
   if (isEditing) {
     return (
@@ -112,8 +143,55 @@ export function KanbanCard({ card, overlay, index = 0 }: KanbanCardProps) {
           onFocus={handleInputFocus}
           placeholder="Add details... (optional)"
           rows={2}
-          className="w-full bg-transparent text-xs text-text-secondary placeholder:text-text-dim resize-none focus:outline-none mb-3 md:mb-4"
+          className="w-full bg-transparent text-xs text-text-secondary placeholder:text-text-dim resize-none focus:outline-none mb-3"
         />
+
+        {/* Priority selector */}
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-xs text-text-dim">Priority:</span>
+          <div className="flex gap-1">
+            {(['', 'low', 'medium', 'high', 'urgent'] as const).map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => setEditPriority(p)}
+                className={cn(
+                  'px-2 py-1 text-[10px] font-medium rounded-md transition-all',
+                  editPriority === p
+                    ? p === '' ? 'bg-surface-active text-text-primary' : `${PRIORITY_CONFIG[p as CardPriority].bg} ${PRIORITY_CONFIG[p as CardPriority].color}`
+                    : 'text-text-dim hover:text-text-muted hover:bg-surface-hover'
+                )}
+              >
+                {p === '' ? 'None' : PRIORITY_CONFIG[p as CardPriority].label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Due date */}
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-xs text-text-dim">Due:</span>
+          <input
+            type="date"
+            value={editDueDate}
+            onChange={(e) => setEditDueDate(e.target.value)}
+            className={cn(
+              'bg-background border border-border rounded-lg px-2 py-1 text-xs',
+              'text-text-primary [color-scheme:dark]',
+              'focus:outline-none focus:border-border-accent'
+            )}
+          />
+          {editDueDate && (
+            <button
+              type="button"
+              onClick={() => setEditDueDate('')}
+              className="text-xs text-text-dim hover:text-danger transition-colors"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+
         <div className="flex gap-2">
           <button
             type="button"
@@ -131,6 +209,8 @@ export function KanbanCard({ card, overlay, index = 0 }: KanbanCardProps) {
             onClick={() => {
               setEditTitle(card.title);
               setEditDescription(card.description || '');
+              setEditPriority(card.priority || '');
+              setEditDueDate(card.dueDate || '');
               setIsEditing(false);
             }}
             className="px-3 md:px-4 py-2 text-xs font-medium text-text-muted hover:text-text-primary active:scale-95 transition-all"
@@ -148,13 +228,14 @@ export function KanbanCard({ card, overlay, index = 0 }: KanbanCardProps) {
       style={style}
       className={cn(
         'group relative bg-surface border border-border rounded-lg md:rounded-xl p-3 md:p-4',
-        'md:cursor-grab md:active:cursor-grabbing', // Only show grab cursor on desktop
+        'md:cursor-grab md:active:cursor-grabbing',
         'transition-all duration-200',
         'hover:border-border-accent md:hover:shadow-md',
-        'md:active:scale-[0.98]', // Only scale on desktop during drag
+        'md:active:scale-[0.98]',
         isDragging && 'opacity-40 scale-[0.98]',
         overlay && 'shadow-xl rotate-2 border-accent/50 bg-surface/95 backdrop-blur-sm',
-        !overlay && 'animate-fade-in'
+        !overlay && 'animate-fade-in',
+        dueDateInfo?.isOverdue && 'border-danger/40'
       )}
       {...attributes}
       {...listeners}
@@ -171,6 +252,43 @@ export function KanbanCard({ card, overlay, index = 0 }: KanbanCardProps) {
             <p className="text-xs text-text-muted mt-1.5 md:mt-2 line-clamp-2 leading-relaxed">
               {card.description}
             </p>
+          )}
+
+          {/* Priority & Due Date badges */}
+          {(card.priority || dueDateInfo) && (
+            <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+              {card.priority && (
+                <span className={cn(
+                  'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold',
+                  PRIORITY_CONFIG[card.priority].bg,
+                  PRIORITY_CONFIG[card.priority].color,
+                )}>
+                  {card.priority === 'urgent' && (
+                    <svg className="w-2.5 h-2.5 mr-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                  )}
+                  {PRIORITY_CONFIG[card.priority].label}
+                </span>
+              )}
+              {dueDateInfo && (
+                <span className={cn(
+                  'inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium',
+                  dueDateInfo.isOverdue
+                    ? 'bg-danger/15 text-danger'
+                    : dueDateInfo.isToday
+                    ? 'bg-[#e5a54b]/15 text-[#e5a54b]'
+                    : dueDateInfo.isSoon
+                    ? 'bg-[#ffb86b]/15 text-[#ffb86b]'
+                    : 'bg-surface-hover text-text-muted'
+                )}>
+                  <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  {dueDateInfo.label}
+                </span>
+              )}
+            </div>
           )}
         </div>
 

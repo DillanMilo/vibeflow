@@ -12,7 +12,7 @@ import {
   type Dispatch,
 } from 'react';
 import { generateId } from '@/lib/utils';
-import type { AppState, KanbanCard, KanbanStatus, TodoItem, Id, Project } from '@/types';
+import type { AppState, KanbanCard, KanbanStatus, TodoItem, CalendarEvent, ActivityEntry, Id, Project } from '@/types';
 import { STORAGE_KEY, PROJECT_COLORS } from '@/types';
 import { useAuth } from './AuthContext';
 import {
@@ -45,6 +45,10 @@ type Action =
   | { type: 'PROMOTE_TODO'; payload: Id }
   // Notes action (operates on active project)
   | { type: 'SET_NOTES'; payload: string }
+  // Calendar actions (operate on active project)
+  | { type: 'ADD_EVENT'; payload: Omit<CalendarEvent, 'id' | 'createdAt'> }
+  | { type: 'UPDATE_EVENT'; payload: { id: Id; updates: Partial<CalendarEvent> } }
+  | { type: 'DELETE_EVENT'; payload: Id }
   // Hydration
   | { type: 'HYDRATE'; payload: AppState };
 
@@ -54,6 +58,8 @@ const createDefaultProject = (name: string = 'My Project', color?: string): Proj
   cards: [],
   todos: [],
   notes: '',
+  events: [],
+  activities: [],
   createdAt: Date.now(),
   color: color || PROJECT_COLORS[0],
 });
@@ -78,10 +84,34 @@ const updateActiveProject = (
   };
 };
 
+// Helper to add an activity entry to a project
+const addActivity = (project: Project, type: ActivityEntry['type'], title: string, detail?: string): Project => ({
+  ...project,
+  activities: [
+    {
+      id: generateId(),
+      type,
+      title,
+      detail,
+      timestamp: Date.now(),
+    },
+    ...project.activities,
+  ].slice(0, 100), // Keep last 100 activities
+});
+
 function appReducer(state: AppState, action: Action): AppState {
   switch (action.type) {
     case 'HYDRATE': {
-      return action.payload;
+      // Ensure all projects have events and activities arrays (migration safety)
+      const migratedPayload = {
+        ...action.payload,
+        projects: action.payload.projects.map(p => ({
+          ...p,
+          events: p.events || [],
+          activities: p.activities || [],
+        })),
+      };
+      return migratedPayload;
     }
 
     // === Project Actions ===
@@ -90,9 +120,10 @@ function appReducer(state: AppState, action: Action): AppState {
         action.payload.name,
         action.payload.color || PROJECT_COLORS[state.projects.length % PROJECT_COLORS.length]
       );
+      const projectWithActivity = addActivity(newProject, 'project_created', `Project "${newProject.name}" created`);
       return {
         ...state,
-        projects: [...state.projects, newProject],
+        projects: [...state.projects, projectWithActivity],
         activeProjectId: state.activeProjectId || newProject.id,
       };
     }
@@ -130,19 +161,22 @@ function appReducer(state: AppState, action: Action): AppState {
 
     // === Card Actions (operate on active project) ===
     case 'ADD_CARD': {
-      return updateActiveProject(state, (project) => ({
-        ...project,
-        cards: [
-          ...project.cards,
-          {
-            id: generateId(),
-            title: action.payload.title,
-            description: action.payload.description,
-            status: action.payload.status,
-            createdAt: Date.now(),
-          },
-        ],
-      }));
+      return updateActiveProject(state, (project) => {
+        const updated = {
+          ...project,
+          cards: [
+            ...project.cards,
+            {
+              id: generateId(),
+              title: action.payload.title,
+              description: action.payload.description,
+              status: action.payload.status,
+              createdAt: Date.now(),
+            },
+          ],
+        };
+        return addActivity(updated, 'card_created', `Card "${action.payload.title}" created`);
+      });
     }
 
     case 'UPDATE_CARD': {
@@ -157,10 +191,14 @@ function appReducer(state: AppState, action: Action): AppState {
     }
 
     case 'DELETE_CARD': {
-      return updateActiveProject(state, (project) => ({
-        ...project,
-        cards: project.cards.filter((card) => card.id !== action.payload),
-      }));
+      return updateActiveProject(state, (project) => {
+        const card = project.cards.find(c => c.id === action.payload);
+        const updated = {
+          ...project,
+          cards: project.cards.filter((c) => c.id !== action.payload),
+        };
+        return card ? addActivity(updated, 'card_deleted', `Card "${card.title}" deleted`) : updated;
+      });
     }
 
     case 'MOVE_CARD': {
@@ -170,17 +208,26 @@ function appReducer(state: AppState, action: Action): AppState {
         const cardToMove = project.cards.find((c) => c.id === id);
         if (!cardToMove) return project;
 
+        const statusChanged = cardToMove.status !== status;
         const otherCards = project.cards.filter((c) => c.id !== id);
         const updatedCard = { ...cardToMove, status };
 
+        let updated: Project;
         if (newIndex !== undefined) {
           const cardsInTargetColumn = otherCards.filter((c) => c.status === status);
           const cardsNotInTarget = otherCards.filter((c) => c.status !== status);
           cardsInTargetColumn.splice(newIndex, 0, updatedCard);
-          return { ...project, cards: [...cardsNotInTarget, ...cardsInTargetColumn] };
+          updated = { ...project, cards: [...cardsNotInTarget, ...cardsInTargetColumn] };
+        } else {
+          updated = { ...project, cards: [...otherCards, updatedCard] };
         }
 
-        return { ...project, cards: [...otherCards, updatedCard] };
+        if (statusChanged) {
+          const statusLabels: Record<string, string> = { 'todo': 'To Do', 'in-progress': 'In Progress', 'complete': 'Complete' };
+          const actType = status === 'complete' ? 'card_completed' as const : 'card_moved' as const;
+          return addActivity(updated, actType, `Card "${cardToMove.title}" moved to ${statusLabels[status]}`);
+        }
+        return updated;
       });
     }
 
@@ -198,28 +245,38 @@ function appReducer(state: AppState, action: Action): AppState {
 
     // === Todo Actions (operate on active project) ===
     case 'ADD_TODO': {
-      return updateActiveProject(state, (project) => ({
-        ...project,
-        todos: [
-          ...project.todos,
-          {
-            id: generateId(),
-            text: action.payload,
-            completed: false,
-          },
-        ],
-      }));
+      return updateActiveProject(state, (project) => {
+        const updated = {
+          ...project,
+          todos: [
+            ...project.todos,
+            {
+              id: generateId(),
+              text: action.payload,
+              completed: false,
+            },
+          ],
+        };
+        return addActivity(updated, 'todo_created', `Task "${action.payload}" added`);
+      });
     }
 
     case 'TOGGLE_TODO': {
-      return updateActiveProject(state, (project) => ({
-        ...project,
-        todos: project.todos.map((todo) =>
-          todo.id === action.payload
-            ? { ...todo, completed: !todo.completed }
-            : todo
-        ),
-      }));
+      return updateActiveProject(state, (project) => {
+        const todo = project.todos.find(t => t.id === action.payload);
+        const updated = {
+          ...project,
+          todos: project.todos.map((t) =>
+            t.id === action.payload
+              ? { ...t, completed: !t.completed }
+              : t
+          ),
+        };
+        if (todo && !todo.completed) {
+          return addActivity(updated, 'todo_completed', `Task "${todo.text}" completed`);
+        }
+        return updated;
+      });
     }
 
     case 'DELETE_TODO': {
@@ -257,6 +314,42 @@ function appReducer(state: AppState, action: Action): AppState {
       }));
     }
 
+    // === Calendar Event Actions ===
+    case 'ADD_EVENT': {
+      return updateActiveProject(state, (project) => {
+        const updated = {
+          ...project,
+          events: [
+            ...project.events,
+            {
+              id: generateId(),
+              ...action.payload,
+              createdAt: Date.now(),
+            },
+          ],
+        };
+        return addActivity(updated, 'event_created', `Event "${action.payload.title}" scheduled`);
+      });
+    }
+
+    case 'UPDATE_EVENT': {
+      return updateActiveProject(state, (project) => ({
+        ...project,
+        events: project.events.map((event) =>
+          event.id === action.payload.id
+            ? { ...event, ...action.payload.updates }
+            : event
+        ),
+      }));
+    }
+
+    case 'DELETE_EVENT': {
+      return updateActiveProject(state, (project) => ({
+        ...project,
+        events: project.events.filter((event) => event.id !== action.payload),
+      }));
+    }
+
     default:
       return state;
   }
@@ -273,6 +366,8 @@ interface AppContextType {
   cards: KanbanCard[];
   todos: TodoItem[];
   notes: string;
+  events: CalendarEvent[];
+  activities: ActivityEntry[];
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -327,6 +422,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
             cards: oldData.cards || [],
             todos: oldData.todos || [],
             notes: oldData.notes || '',
+            events: [],
+            activities: [],
             createdAt: Date.now(),
             color: PROJECT_COLORS[0],
           };
@@ -452,6 +549,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     cards: activeProject?.cards || [],
     todos: activeProject?.todos || [],
     notes: activeProject?.notes || '',
+    events: activeProject?.events || [],
+    activities: activeProject?.activities || [],
   };
 
   return (

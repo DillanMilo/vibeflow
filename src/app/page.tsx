@@ -5,10 +5,11 @@ import { useApp } from '@/context/AppContext';
 import { useAuth } from '@/context/AuthContext';
 import { KanbanBoard } from '@/components/kanban/KanbanBoard';
 import { Sidebar } from '@/components/sidebar/Sidebar';
+import { Calendar } from '@/components/calendar/Calendar';
 import { cn } from '@/lib/utils';
 import { PROJECT_COLORS } from '@/types';
 
-type MobileView = 'board' | 'tasks' | 'notes';
+type MobileView = 'board' | 'tasks' | 'calendar' | 'notes';
 
 function LoadingSkeleton() {
   return (
@@ -45,7 +46,7 @@ function LoadingSkeleton() {
           </div>
         </aside>
       </div>
-      <div className="md:hidden h-16 border-t border-border-subtle bg-background-elevated" />
+      <div className="md:hidden h-[68px] border-t border-border-subtle bg-background-elevated" />
     </div>
   );
 }
@@ -439,7 +440,124 @@ function SyncStatus() {
   );
 }
 
-function Header() {
+function SearchBar({ query, onQueryChange }: { query: string; onQueryChange: (q: string) => void }) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  if (!isOpen) {
+    return (
+      <button
+        type="button"
+        onClick={() => setIsOpen(true)}
+        className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm text-text-dim hover:text-text-muted hover:bg-surface-hover transition-all"
+      >
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        Search
+      </button>
+    );
+  }
+
+  return (
+    <div className="hidden md:flex items-center gap-2 animate-fade-in">
+      <div className="relative">
+        <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-dim" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => onQueryChange(e.target.value)}
+          placeholder="Filter cards..."
+          autoFocus
+          onBlur={() => { if (!query) setIsOpen(false); }}
+          onKeyDown={(e) => { if (e.key === 'Escape') { onQueryChange(''); setIsOpen(false); } }}
+          className={cn(
+            'w-48 bg-surface border border-border rounded-lg pl-8 pr-3 py-1.5 text-sm',
+            'text-text-primary placeholder:text-text-dim',
+            'focus:outline-none focus:border-border-accent focus:ring-1 focus:ring-accent/20',
+          )}
+        />
+      </div>
+      {query && (
+        <button
+          type="button"
+          onClick={() => { onQueryChange(''); setIsOpen(false); }}
+          className="p-1 text-text-dim hover:text-text-primary transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      )}
+    </div>
+  );
+}
+
+function ProgressBar() {
+  const { cards, todos, events } = useApp();
+
+  const totalCards = cards.length;
+  const completedCards = cards.filter(c => c.status === 'complete').length;
+  const inProgressCards = cards.filter(c => c.status === 'in-progress').length;
+  const completedTodos = todos.filter(t => t.completed).length;
+  const totalTodos = todos.length;
+  const upcomingEvents = events.filter(e => e.date >= new Date().toISOString().split('T')[0]).length;
+
+  const cardProgress = totalCards > 0 ? Math.round((completedCards / totalCards) * 100) : 0;
+
+  if (totalCards === 0 && totalTodos === 0) return null;
+
+  return (
+    <div className="hidden md:flex items-center gap-4 px-6 py-2 border-b border-border-subtle/50 bg-background animate-fade-in">
+      {/* Progress bar */}
+      {totalCards > 0 && (
+        <div className="flex items-center gap-3 flex-1">
+          <div className="flex items-center gap-2 text-xs text-text-muted">
+            <span className="font-medium text-text-secondary">{cardProgress}%</span>
+            <span>complete</span>
+          </div>
+          <div className="flex-1 max-w-xs h-1.5 bg-surface rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all duration-500 ease-out"
+              style={{
+                width: `${cardProgress}%`,
+                background: cardProgress === 100
+                  ? 'var(--success)'
+                  : 'linear-gradient(90deg, var(--accent), var(--accent-hover))',
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Stats chips */}
+      <div className="flex items-center gap-2">
+        {inProgressCards > 0 && (
+          <span className="flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-accent/10 text-accent">
+            <div className="w-1.5 h-1.5 rounded-full bg-accent" />
+            {inProgressCards} in progress
+          </span>
+        )}
+        {totalTodos > 0 && (
+          <span className="flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-surface text-text-muted border border-border-subtle">
+            {completedTodos}/{totalTodos} tasks
+          </span>
+        )}
+        {upcomingEvents > 0 && (
+          <span className="flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-[#7bdfff]/10 text-[#7bdfff]">
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            {upcomingEvents} upcoming
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Header({ searchQuery, onSearchChange }: { searchQuery: string; onSearchChange: (q: string) => void }) {
   return (
     <header className="flex-shrink-0 h-14 md:h-16 border-b border-border-subtle bg-background px-4 md:px-6 flex items-center justify-between animate-fade-in relative z-50">
       <div className="flex items-center gap-3 md:gap-4">
@@ -466,8 +584,10 @@ function Header() {
         <ProjectSelector />
       </div>
 
-      {/* Right side - sync status and user menu */}
-      <div className="flex items-center gap-4">
+      {/* Right side - search, sync status and user menu */}
+      <div className="flex items-center gap-3">
+        <SearchBar query={searchQuery} onQueryChange={onSearchChange} />
+
         {/* Status indicator - hidden on mobile */}
         <div className="hidden md:flex items-center text-sm text-text-muted">
           <SyncStatus />
@@ -501,6 +621,15 @@ function MobileNav({ activeView, onViewChange }: { activeView: MobileView; onVie
       ),
     },
     {
+      id: 'calendar',
+      label: 'Calendar',
+      icon: (
+        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+      ),
+    },
+    {
       id: 'notes',
       label: 'Notes',
       icon: (
@@ -517,7 +646,7 @@ function MobileNav({ activeView, onViewChange }: { activeView: MobileView; onVie
   };
 
   return (
-    <nav className="md:hidden flex-shrink-0 h-16 border-t border-border-subtle bg-background-elevated safe-bottom z-50">
+    <nav className="md:hidden flex-shrink-0 h-[68px] border-t border-border-subtle bg-background-elevated safe-bottom z-50">
       <div className="flex h-full">
         {navItems.map((item) => (
           <button
@@ -526,7 +655,7 @@ function MobileNav({ activeView, onViewChange }: { activeView: MobileView; onVie
             onClick={handleNavClick(item.id)}
             onTouchEnd={handleNavClick(item.id)}
             className={cn(
-              'flex-1 flex flex-col items-center justify-center gap-1 transition-colors',
+              'flex-1 flex flex-col items-center justify-center gap-1 transition-colors min-h-[48px]',
               'touch-manipulation select-none',
               activeView === item.id
                 ? 'text-accent'
@@ -534,7 +663,7 @@ function MobileNav({ activeView, onViewChange }: { activeView: MobileView; onVie
             )}
           >
             {item.icon}
-            <span className="text-xs font-medium">{item.label}</span>
+            <span className="text-[11px] font-medium">{item.label}</span>
           </button>
         ))}
       </div>
@@ -545,6 +674,8 @@ function MobileNav({ activeView, onViewChange }: { activeView: MobileView; onVie
 export default function Home() {
   const { isHydrated } = useApp();
   const [mobileView, setMobileView] = useState<MobileView>('board');
+  const [desktopRightPanel, setDesktopRightPanel] = useState<'tasks' | 'notes' | 'calendar'>('tasks');
+  const [searchQuery, setSearchQuery] = useState('');
 
   if (!isHydrated) {
     return <LoadingSkeleton />;
@@ -552,26 +683,79 @@ export default function Home() {
 
   return (
     <div className="flex flex-col h-dvh bg-background overflow-hidden">
-      <Header />
+      <Header searchQuery={searchQuery} onSearchChange={setSearchQuery} />
+      <ProgressBar />
 
       {/* Desktop layout */}
       <div className="hidden md:flex flex-1 overflow-hidden">
         <main className="flex-1 overflow-hidden">
-          <KanbanBoard />
+          <KanbanBoard searchQuery={searchQuery} />
         </main>
-        <Sidebar />
+
+        {/* Desktop right panel with tab switcher */}
+        <div className="w-[380px] flex-shrink-0 border-l border-border-subtle bg-background-elevated flex flex-col h-full animate-slide-in">
+          {/* Panel tabs */}
+          <div className="flex border-b border-border-subtle flex-shrink-0">
+            {[
+              { id: 'tasks' as const, label: 'Tasks' },
+              { id: 'notes' as const, label: 'Notes' },
+              { id: 'calendar' as const, label: 'Calendar' },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setDesktopRightPanel(tab.id)}
+                className={cn(
+                  'flex-1 px-2 py-3 text-xs font-medium transition-all relative',
+                  desktopRightPanel === tab.id
+                    ? 'text-accent'
+                    : 'text-text-muted hover:text-text-secondary'
+                )}
+              >
+                {tab.label}
+                {desktopRightPanel === tab.id && (
+                  <div className="absolute bottom-0 left-2 right-2 h-0.5 bg-accent rounded-full" />
+                )}
+              </button>
+            ))}
+          </div>
+
+          {/* Panel content */}
+          <div className="flex-1 overflow-hidden">
+            {desktopRightPanel === 'tasks' && (
+              <div className="p-5 h-full overflow-hidden">
+                <Sidebar view="tasks" />
+              </div>
+            )}
+            {desktopRightPanel === 'notes' && (
+              <div className="p-5 h-full overflow-hidden">
+                <Sidebar view="notes" />
+              </div>
+            )}
+            {desktopRightPanel === 'calendar' && (
+              <div className="p-5 h-full overflow-hidden">
+                <Calendar />
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Mobile layout */}
       <div className="flex md:hidden flex-1 overflow-hidden">
         {mobileView === 'board' && (
           <main className="flex-1 overflow-hidden animate-fade-in">
-            <KanbanBoard />
+            <KanbanBoard searchQuery={searchQuery} />
           </main>
         )}
         {mobileView === 'tasks' && (
           <div className="flex-1 overflow-hidden animate-fade-in">
             <Sidebar view="tasks" />
+          </div>
+        )}
+        {mobileView === 'calendar' && (
+          <div className="flex-1 overflow-y-auto animate-fade-in p-4">
+            <Calendar />
           </div>
         )}
         {mobileView === 'notes' && (
