@@ -1,5 +1,5 @@
 import { getSupabaseClient } from './client';
-import type { AppState, Project, KanbanCard, TodoItem, KanbanStatus } from '@/types';
+import type { AppState, Project, KanbanCard, TodoItem, KanbanStatus, CardPriority } from '@/types';
 import type { Database } from '@/types/supabase';
 
 type DbProject = Database['public']['Tables']['projects']['Row'];
@@ -36,6 +36,8 @@ function dbCardToCard(dbCard: DbCard): KanbanCard {
     title: dbCard.title,
     description: dbCard.description ?? undefined,
     status: dbCard.status as KanbanStatus,
+    priority: (dbCard.priority as CardPriority) ?? undefined,
+    dueDate: dbCard.due_date ?? undefined,
     createdAt: dbCard.created_at,
   };
 }
@@ -135,6 +137,8 @@ export async function createCard(
     title: card.title,
     description: card.description || null,
     status: card.status,
+    priority: card.priority || null,
+    due_date: card.dueDate || null,
     position,
     created_at: card.createdAt,
   });
@@ -148,9 +152,18 @@ export async function updateCard(
 ): Promise<void> {
   const supabase = getSupabaseClient();
 
+  // Map frontend camelCase fields to database snake_case columns
+  const dbUpdates: Record<string, unknown> = {};
+  if (updates.title !== undefined) dbUpdates.title = updates.title;
+  if (updates.description !== undefined) dbUpdates.description = updates.description;
+  if (updates.status !== undefined) dbUpdates.status = updates.status;
+  if (updates.position !== undefined) dbUpdates.position = updates.position;
+  if ('priority' in updates) dbUpdates.priority = updates.priority || null;
+  if ('dueDate' in updates) dbUpdates.due_date = updates.dueDate || null;
+
   const { error } = await supabase
     .from('kanban_cards')
-    .update(updates)
+    .update(dbUpdates)
     .eq('id', cardId);
 
   if (error) throw error;
@@ -353,7 +366,9 @@ async function syncCards(
     if (prevCard) {
       const hasContentChange =
         prevCard.title !== currCard.title ||
-        prevCard.description !== currCard.description;
+        prevCard.description !== currCard.description ||
+        prevCard.priority !== currCard.priority ||
+        prevCard.dueDate !== currCard.dueDate;
       const hasStatusChange = prevCard.status !== currCard.status;
       const hasPositionChange = prevIndex !== i;
 
@@ -361,6 +376,8 @@ async function syncCards(
         await updateCard(currCard.id, {
           title: currCard.title,
           description: currCard.description,
+          priority: currCard.priority,
+          dueDate: currCard.dueDate,
         });
       }
 
