@@ -75,6 +75,8 @@ export interface Database {
           title: string;
           description: string | null;
           status: string;
+          priority: string | null;
+          due_date: string | null;
           position: number;
           created_at: number;
           updated_at: string;
@@ -86,6 +88,8 @@ export interface Database {
           title: string;
           description?: string | null;
           status: string;
+          priority?: string | null;
+          due_date?: string | null;
           position?: number;
           created_at: number;
           updated_at?: string;
@@ -97,6 +101,8 @@ export interface Database {
           title?: string;
           description?: string | null;
           status?: string;
+          priority?: string | null;
+          due_date?: string | null;
           position?: number;
           created_at?: number;
           updated_at?: string;

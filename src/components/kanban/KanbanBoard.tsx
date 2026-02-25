@@ -39,12 +39,12 @@ export function KanbanBoard({ searchQuery = '' }: { searchQuery?: string }) {
   }, []);
 
   // Always use the same number of sensors to avoid React hook size errors.
-  // On mobile, set an impossibly high distance so drag never activates.
+  // On mobile, use a delay + tolerance so tap/scroll still work but long-press starts drag.
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: isMobile ? 99999 : 10,
-      },
+      activationConstraint: isMobile
+        ? { delay: 200, tolerance: 5 }
+        : { distance: 10 },
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,

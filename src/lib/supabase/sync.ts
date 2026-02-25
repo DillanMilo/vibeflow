@@ -36,6 +36,8 @@ function dbCardToCard(dbCard: DbCard): KanbanCard {
     title: dbCard.title,
     description: dbCard.description ?? undefined,
     status: dbCard.status as KanbanStatus,
+    priority: (dbCard.priority as KanbanCard['priority']) ?? undefined,
+    dueDate: dbCard.due_date ?? undefined,
     createdAt: dbCard.created_at,
   };
 }
@@ -135,6 +137,8 @@ export async function createCard(
     title: card.title,
     description: card.description || null,
     status: card.status,
+    priority: card.priority || null,
+    due_date: card.dueDate || null,
     position,
     created_at: card.createdAt,
   });
@@ -148,9 +152,19 @@ export async function updateCard(
 ): Promise<void> {
   const supabase = getSupabaseClient();
 
+  // Map camelCase fields to snake_case for Supabase
+  const { dueDate, ...rest } = updates;
+  const dbUpdates: Record<string, unknown> = { ...rest };
+  if (dueDate !== undefined) {
+    dbUpdates.due_date = dueDate || null;
+  }
+  if (updates.priority !== undefined) {
+    dbUpdates.priority = updates.priority || null;
+  }
+
   const { error } = await supabase
     .from('kanban_cards')
-    .update(updates)
+    .update(dbUpdates)
     .eq('id', cardId);
 
   if (error) throw error;
@@ -353,7 +367,9 @@ async function syncCards(
     if (prevCard) {
       const hasContentChange =
         prevCard.title !== currCard.title ||
-        prevCard.description !== currCard.description;
+        prevCard.description !== currCard.description ||
+        prevCard.priority !== currCard.priority ||
+        prevCard.dueDate !== currCard.dueDate;
       const hasStatusChange = prevCard.status !== currCard.status;
       const hasPositionChange = prevIndex !== i;
 
@@ -361,6 +377,8 @@ async function syncCards(
         await updateCard(currCard.id, {
           title: currCard.title,
           description: currCard.description,
+          priority: currCard.priority,
+          dueDate: currCard.dueDate,
         });
       }
 
