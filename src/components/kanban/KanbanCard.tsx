@@ -54,6 +54,7 @@ export function KanbanCard({ card, overlay, index = 0 }: KanbanCardProps) {
   const [editDescription, setEditDescription] = useState(card.description || '');
   const [editPriority, setEditPriority] = useState<CardPriority | ''>(card.priority || '');
   const [editDueDate, setEditDueDate] = useState(card.dueDate || '');
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const {
     attributes,
@@ -249,9 +250,34 @@ export function KanbanCard({ card, overlay, index = 0 }: KanbanCardProps) {
             {card.title}
           </p>
           {card.description && (
-            <p className="text-xs text-text-muted mt-1.5 md:mt-2 line-clamp-2 leading-relaxed">
-              {card.description}
-            </p>
+            <div className="mt-1.5 md:mt-2">
+              <p className={cn(
+                'text-xs text-text-muted leading-relaxed whitespace-pre-wrap',
+                !isExpanded && 'line-clamp-2'
+              )}>
+                {card.description}
+              </p>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsExpanded(!isExpanded);
+                }}
+                onPointerDown={(e) => e.stopPropagation()}
+                className="flex items-center gap-1 mt-1 text-[11px] text-text-dim hover:text-accent transition-colors"
+              >
+                <svg
+                  className={cn('w-3 h-3 transition-transform duration-200', isExpanded && 'rotate-180')}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+                {isExpanded ? 'Show less' : 'Show more'}
+              </button>
+            </div>
           )}
 
           {/* Priority & Due Date badges */}
