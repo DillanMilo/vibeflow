@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, type KeyboardEvent } from 'react';
+import { useState, useMemo, type KeyboardEvent } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useApp } from '@/context/AppContext';
 import { KanbanCard } from './KanbanCard';
 import { cn } from '@/lib/utils';
-import type { KanbanCard as KanbanCardType, KanbanStatus, Id } from '@/types';
+import type { KanbanCard as KanbanCardType, KanbanStatus, TodoCategory, Id } from '@/types';
 
 interface KanbanColumnProps {
   id: KanbanStatus;
@@ -30,6 +30,11 @@ const statusConfig = {
   },
 };
 
+interface CardGroup {
+  category: TodoCategory | null;
+  cards: KanbanCardType[];
+}
+
 export function KanbanColumn({ id, title, cards, animationDelay = 0 }: KanbanColumnProps) {
   const { dispatch, todoCategories } = useApp();
   const [isAdding, setIsAdding] = useState(false);
@@ -38,9 +43,66 @@ export function KanbanColumn({ id, title, cards, animationDelay = 0 }: KanbanCol
   const [addToTop, setAddToTop] = useState(false);
   const [newCategoryId, setNewCategoryId] = useState<Id | ''>('');
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
   const { setNodeRef, isOver } = useDroppable({ id });
   const config = statusConfig[id];
+
+  // Check if we have any categorized cards in this column
+  const hasCategorizedCards = cards.some(c => c.categoryId);
+
+  // Group cards by category
+  const groups = useMemo((): CardGroup[] | null => {
+    if (todoCategories.length === 0 || !hasCategorizedCards) return null;
+
+    const categoryMap = new Map<string, KanbanCardType[]>();
+    const uncategorized: KanbanCardType[] = [];
+
+    for (const card of cards) {
+      if (card.categoryId) {
+        const existing = categoryMap.get(card.categoryId) || [];
+        existing.push(card);
+        categoryMap.set(card.categoryId, existing);
+      } else {
+        uncategorized.push(card);
+      }
+    }
+
+    const result: CardGroup[] = [];
+
+    // Add groups for categories that have cards
+    for (const cat of todoCategories) {
+      const catCards = categoryMap.get(cat.id);
+      if (catCards && catCards.length > 0) {
+        result.push({ category: cat, cards: catCards });
+      }
+    }
+
+    // Add uncategorized at the end
+    if (uncategorized.length > 0) {
+      result.push({ category: null, cards: uncategorized });
+    }
+
+    return result;
+  }, [cards, todoCategories, hasCategorizedCards]);
+
+  // Flat ordered list for SortableContext (grouped order)
+  const orderedCardIds = useMemo(() => {
+    if (!groups) return cards.map(c => c.id);
+    return groups.flatMap(g => g.cards.map(c => c.id));
+  }, [groups, cards]);
+
+  const toggleGroup = (groupKey: string) => {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(groupKey)) {
+        next.delete(groupKey);
+      } else {
+        next.add(groupKey);
+      }
+      return next;
+    });
+  };
 
   const handleAddCard = () => {
     const titleText = newTitle.trim();
@@ -75,10 +137,72 @@ export function KanbanColumn({ id, title, cards, animationDelay = 0 }: KanbanCol
   };
 
   const handleInputFocus = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    // Prevent iOS from auto-scrolling the input into view in PWA mode
-    // This prevents the keyboard jump issue on iPad
     e.target.scrollIntoView({ behavior: 'instant', block: 'nearest' });
   };
+
+  const renderGroupedCards = (cardGroups: CardGroup[]) => (
+    <div className="space-y-2 md:space-y-3">
+      {cardGroups.map((group) => {
+        const groupKey = group.category?.id || '__uncategorized';
+        const isGroupCollapsed = collapsedGroups.has(groupKey);
+        const completedInGroup = group.cards.filter(c => c.status === 'complete').length;
+
+        return (
+          <div key={groupKey}>
+            {/* Group header */}
+            <button
+              type="button"
+              onClick={() => toggleGroup(groupKey)}
+              onPointerDown={(e) => e.stopPropagation()}
+              className={cn(
+                'flex items-center gap-1.5 w-full px-2 py-1.5 mb-1.5 rounded-lg transition-all',
+                'hover:bg-surface/50'
+              )}
+            >
+              <svg
+                className={cn(
+                  'w-3 h-3 text-text-dim transition-transform duration-200 flex-shrink-0',
+                  isGroupCollapsed && '-rotate-90'
+                )}
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+              <svg className="w-3 h-3 text-accent flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+              </svg>
+              <span className="text-[11px] font-semibold text-accent truncate">
+                {group.category?.name || 'General'}
+              </span>
+              <span className="text-[10px] text-text-dim ml-auto flex-shrink-0">
+                {group.cards.length}
+              </span>
+            </button>
+
+            {/* Group cards */}
+            {!isGroupCollapsed && (
+              <div className="space-y-2 md:space-y-3">
+                {group.cards.map((card, index) => (
+                  <KanbanCard key={card.id} card={card} index={index} />
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  const renderFlatCards = () => (
+    <div className="space-y-2 md:space-y-3">
+      {cards.map((card, index) => (
+        <KanbanCard key={card.id} card={card} index={index} />
+      ))}
+    </div>
+  );
 
   return (
     <div
@@ -131,12 +255,8 @@ export function KanbanColumn({ id, title, cards, animationDelay = 0 }: KanbanCol
           <>
             {/* Scrollable cards container */}
             <div className="flex-1 overflow-y-auto -mx-1 px-1 min-h-0">
-              <SortableContext items={cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
-                <div className="space-y-2 md:space-y-3">
-                  {cards.map((card, index) => (
-                    <KanbanCard key={card.id} card={card} index={index} />
-                  ))}
-                </div>
+              <SortableContext items={orderedCardIds} strategy={verticalListSortingStrategy}>
+                {groups ? renderGroupedCards(groups) : renderFlatCards()}
               </SortableContext>
             </div>
 
