@@ -1,5 +1,5 @@
 import { getSupabaseClient } from './client';
-import type { AppState, Project, KanbanCard, TodoItem, KanbanStatus } from '@/types';
+import type { AppState, Project, KanbanCard, TodoItem, TodoCategory, KanbanStatus } from '@/types';
 import type { Database } from '@/types/supabase';
 
 type DbProject = Database['public']['Tables']['projects']['Row'];
@@ -9,6 +9,24 @@ type DbTodo = Database['public']['Tables']['todo_items']['Row'];
 // =====================
 // DATA TRANSFORMERS
 // =====================
+
+function parseTodoCategories(raw: unknown): TodoCategory[] {
+  if (!raw) return [];
+  if (Array.isArray(raw)) {
+    return raw.filter(
+      (item): item is TodoCategory =>
+        typeof item === 'object' && item !== null && 'id' in item && 'name' in item
+    );
+  }
+  if (typeof raw === 'string') {
+    try {
+      return parseTodoCategories(JSON.parse(raw));
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
 
 function dbProjectToProject(dbProject: DbProject, cards: DbCard[], todos: DbTodo[]): Project {
   return {
@@ -25,7 +43,7 @@ function dbProjectToProject(dbProject: DbProject, cards: DbCard[], todos: DbTodo
       .filter(t => t.project_id === dbProject.id)
       .sort((a, b) => a.position - b.position)
       .map(dbTodoToTodo),
-    todoCategories: [],
+    todoCategories: parseTodoCategories(dbProject.todo_categories),
     events: [],
     activities: [],
   };
@@ -39,6 +57,7 @@ function dbCardToCard(dbCard: DbCard): KanbanCard {
     status: dbCard.status as KanbanStatus,
     priority: (dbCard.priority as KanbanCard['priority']) ?? undefined,
     dueDate: dbCard.due_date ?? undefined,
+    categoryId: dbCard.category_id ?? undefined,
     createdAt: dbCard.created_at,
   };
 }
@@ -48,6 +67,7 @@ function dbTodoToTodo(dbTodo: DbTodo): TodoItem {
     id: dbTodo.id,
     text: dbTodo.text,
     completed: dbTodo.completed,
+    categoryId: dbTodo.category_id ?? undefined,
   };
 }
 
@@ -91,6 +111,7 @@ export async function createProject(userId: string, project: Project): Promise<v
     name: project.name,
     notes: project.notes,
     color: project.color || '#e5a54b',
+    todo_categories: JSON.stringify(project.todoCategories || []),
     created_at: project.createdAt,
   });
 
@@ -99,13 +120,19 @@ export async function createProject(userId: string, project: Project): Promise<v
 
 export async function updateProject(
   projectId: string,
-  updates: Partial<Pick<Project, 'name' | 'color' | 'notes'>>
+  updates: Partial<Pick<Project, 'name' | 'color' | 'notes' | 'todoCategories'>>
 ): Promise<void> {
   const supabase = getSupabaseClient();
 
+  const { todoCategories, ...rest } = updates;
+  const dbUpdates: Record<string, unknown> = { ...rest };
+  if (todoCategories !== undefined) {
+    dbUpdates.todo_categories = JSON.stringify(todoCategories);
+  }
+
   const { error } = await supabase
     .from('projects')
-    .update(updates)
+    .update(dbUpdates)
     .eq('id', projectId);
 
   if (error) throw error;
@@ -140,6 +167,7 @@ export async function createCard(
     status: card.status,
     priority: card.priority || null,
     due_date: card.dueDate || null,
+    category_id: card.categoryId || null,
     position,
     created_at: card.createdAt,
   });
@@ -154,10 +182,13 @@ export async function updateCard(
   const supabase = getSupabaseClient();
 
   // Map camelCase fields to snake_case for Supabase
-  const { dueDate, ...rest } = updates;
+  const { dueDate, categoryId, ...rest } = updates;
   const dbUpdates: Record<string, unknown> = { ...rest };
   if (dueDate !== undefined) {
     dbUpdates.due_date = dueDate || null;
+  }
+  if (categoryId !== undefined) {
+    dbUpdates.category_id = categoryId || null;
   }
   if (updates.priority !== undefined) {
     dbUpdates.priority = updates.priority || null;
@@ -196,6 +227,7 @@ export async function createTodo(
     user_id: userId,
     text: todo.text,
     completed: todo.completed,
+    category_id: todo.categoryId || null,
     position,
   });
 
@@ -208,9 +240,15 @@ export async function updateTodo(
 ): Promise<void> {
   const supabase = getSupabaseClient();
 
+  const { categoryId, ...rest } = updates;
+  const dbUpdates: Record<string, unknown> = { ...rest };
+  if (categoryId !== undefined) {
+    dbUpdates.category_id = categoryId || null;
+  }
+
   const { error } = await supabase
     .from('todo_items')
-    .update(updates)
+    .update(dbUpdates)
     .eq('id', todoId);
 
   if (error) throw error;
@@ -305,19 +343,24 @@ export async function syncToSupabase(
       }
     }
 
-    // Updated projects (name, color, notes)
+    // Updated projects (name, color, notes, todoCategories)
     for (const currProject of curr.projects) {
       const prevProject = prev.projects.find(p => p.id === currProject.id);
       if (prevProject) {
+        const categoriesChanged =
+          JSON.stringify(prevProject.todoCategories) !== JSON.stringify(currProject.todoCategories);
+
         if (
           prevProject.name !== currProject.name ||
           prevProject.color !== currProject.color ||
-          prevProject.notes !== currProject.notes
+          prevProject.notes !== currProject.notes ||
+          categoriesChanged
         ) {
           await updateProject(currProject.id, {
             name: currProject.name,
             color: currProject.color,
             notes: currProject.notes,
+            todoCategories: currProject.todoCategories,
           });
         }
 
@@ -370,7 +413,8 @@ async function syncCards(
         prevCard.title !== currCard.title ||
         prevCard.description !== currCard.description ||
         prevCard.priority !== currCard.priority ||
-        prevCard.dueDate !== currCard.dueDate;
+        prevCard.dueDate !== currCard.dueDate ||
+        prevCard.categoryId !== currCard.categoryId;
       const hasStatusChange = prevCard.status !== currCard.status;
       const hasPositionChange = prevIndex !== i;
 
@@ -380,6 +424,7 @@ async function syncCards(
           description: currCard.description,
           priority: currCard.priority,
           dueDate: currCard.dueDate,
+          categoryId: currCard.categoryId,
         });
       }
 
@@ -425,8 +470,14 @@ async function syncTodos(
   // Updated todos
   for (const currTodo of currTodos) {
     const prevTodo = prevTodos.find(t => t.id === currTodo.id);
-    if (prevTodo && prevTodo.completed !== currTodo.completed) {
-      await updateTodo(currTodo.id, { completed: currTodo.completed });
+    if (prevTodo && (
+      prevTodo.completed !== currTodo.completed ||
+      prevTodo.categoryId !== currTodo.categoryId
+    )) {
+      await updateTodo(currTodo.id, {
+        completed: currTodo.completed,
+        categoryId: currTodo.categoryId,
+      });
     }
   }
 }

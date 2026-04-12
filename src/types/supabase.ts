@@ -37,6 +37,7 @@ export interface Database {
           name: string;
           notes: string;
           color: string;
+          todo_categories: Json;
           created_at: number;
           updated_at: string;
         };
@@ -46,6 +47,7 @@ export interface Database {
           name: string;
           notes?: string;
           color?: string;
+          todo_categories?: Json;
           created_at: number;
           updated_at?: string;
         };
@@ -55,6 +57,7 @@ export interface Database {
           name?: string;
           notes?: string;
           color?: string;
+          todo_categories?: Json;
           created_at?: number;
           updated_at?: string;
         };
@@ -77,6 +80,7 @@ export interface Database {
           status: string;
           priority: string | null;
           due_date: string | null;
+          category_id: string | null;
           position: number;
           created_at: number;
           updated_at: string;
@@ -90,6 +94,7 @@ export interface Database {
           status: string;
           priority?: string | null;
           due_date?: string | null;
+          category_id?: string | null;
           position?: number;
           created_at: number;
           updated_at?: string;
@@ -103,6 +108,7 @@ export interface Database {
           status?: string;
           priority?: string | null;
           due_date?: string | null;
+          category_id?: string | null;
           position?: number;
           created_at?: number;
           updated_at?: string;
@@ -129,6 +135,7 @@ export interface Database {
           user_id: string;
           text: string;
           completed: boolean;
+          category_id: string | null;
           position: number;
           created_at: string;
           updated_at: string;
@@ -139,6 +146,7 @@ export interface Database {
           user_id: string;
           text: string;
           completed?: boolean;
+          category_id?: string | null;
           position?: number;
           created_at?: string;
           updated_at?: string;
@@ -149,6 +157,7 @@ export interface Database {
           user_id?: string;
           text?: string;
           completed?: boolean;
+          category_id?: string | null;
           position?: number;
           created_at?: string;
           updated_at?: string;

@@ -224,3 +224,41 @@ END $$;
 -- DONE!
 -- =====================
 -- Your database is now ready for Vibeflow!
+
+-- =============================================
+-- MIGRATION: Add category support
+-- Safe to run multiple times (uses IF NOT EXISTS)
+-- =============================================
+
+-- Add todo_categories JSON column to projects table
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'projects' AND column_name = 'todo_categories'
+  ) THEN
+    ALTER TABLE public.projects ADD COLUMN todo_categories JSONB DEFAULT '[]';
+  END IF;
+END $$;
+
+-- Add category_id to kanban_cards
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'kanban_cards' AND column_name = 'category_id'
+  ) THEN
+    ALTER TABLE public.kanban_cards ADD COLUMN category_id TEXT;
+  END IF;
+END $$;
+
+-- Add category_id to todo_items
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'todo_items' AND column_name = 'category_id'
+  ) THEN
+    ALTER TABLE public.todo_items ADD COLUMN category_id TEXT;
+  END IF;
+END $$;
