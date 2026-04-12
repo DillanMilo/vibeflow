@@ -33,7 +33,7 @@ type Action =
   | { type: 'DELETE_PROJECT'; payload: Id }
   | { type: 'SET_ACTIVE_PROJECT'; payload: Id }
   // Card actions (operate on active project)
-  | { type: 'ADD_CARD'; payload: { title: string; description?: string; status: KanbanStatus } }
+  | { type: 'ADD_CARD'; payload: { title: string; description?: string; status: KanbanStatus; position?: 'top' | 'bottom' } }
   | { type: 'UPDATE_CARD'; payload: { id: Id; updates: Partial<KanbanCard> } }
   | { type: 'DELETE_CARD'; payload: Id }
   | { type: 'MOVE_CARD'; payload: { id: Id; status: KanbanStatus; newIndex?: number } }
@@ -162,19 +162,29 @@ function appReducer(state: AppState, action: Action): AppState {
     // === Card Actions (operate on active project) ===
     case 'ADD_CARD': {
       return updateActiveProject(state, (project) => {
-        const updated = {
-          ...project,
-          cards: [
-            ...project.cards,
-            {
-              id: generateId(),
-              title: action.payload.title,
-              description: action.payload.description,
-              status: action.payload.status,
-              createdAt: Date.now(),
-            },
-          ],
+        const newCard: KanbanCard = {
+          id: generateId(),
+          title: action.payload.title,
+          description: action.payload.description,
+          status: action.payload.status,
+          createdAt: Date.now(),
         };
+
+        let newCards: KanbanCard[];
+        if (action.payload.position === 'top') {
+          // Insert before the first card with the same status
+          const firstIdx = project.cards.findIndex(c => c.status === action.payload.status);
+          if (firstIdx >= 0) {
+            newCards = [...project.cards];
+            newCards.splice(firstIdx, 0, newCard);
+          } else {
+            newCards = [...project.cards, newCard];
+          }
+        } else {
+          newCards = [...project.cards, newCard];
+        }
+
+        const updated = { ...project, cards: newCards };
         return addActivity(updated, 'card_created', `Card "${action.payload.title}" created`);
       });
     }

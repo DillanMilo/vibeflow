@@ -408,6 +408,55 @@ export function KanbanCard({ card, overlay, index = 0 }: KanbanCardProps) {
         </button>
       </div>
 
+      {/* Desktop quick-move buttons */}
+      {(canMoveLeft || canMoveRight) && (
+        <div className={cn(
+          'hidden md:flex items-center gap-1.5 mt-3 pt-3 border-t border-border-subtle',
+          'opacity-0 group-hover:opacity-100 transition-all duration-200'
+        )}>
+          {prevStatus && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleMoveCard(prevStatus);
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+              className={cn(
+                'flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-all duration-200',
+                'text-text-dim hover:text-text-secondary hover:bg-surface-hover active:scale-95'
+              )}
+            >
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+              </svg>
+              {STATUS_LABELS[prevStatus]}
+            </button>
+          )}
+          {nextStatus && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleMoveCard(nextStatus);
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+              className={cn(
+                'flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-all duration-200',
+                nextStatus === 'complete'
+                  ? 'text-success/70 hover:text-success hover:bg-success/10 active:scale-95'
+                  : 'text-text-dim hover:text-text-secondary hover:bg-surface-hover active:scale-95'
+              )}
+            >
+              {STATUS_LABELS[nextStatus]}
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Drag handle indicator - desktop only */}
       <div className="hidden md:block absolute left-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-30 transition-opacity pointer-events-none">
         <svg className="w-3 h-3 text-text-dim" viewBox="0 0 24 24" fill="currentColor">
