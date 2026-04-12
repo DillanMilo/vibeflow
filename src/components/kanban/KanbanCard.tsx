@@ -5,7 +5,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useApp } from '@/context/AppContext';
 import { cn } from '@/lib/utils';
-import type { KanbanCard as KanbanCardType, KanbanStatus, CardPriority } from '@/types';
+import type { KanbanCard as KanbanCardType, KanbanStatus, CardPriority, Id } from '@/types';
 
 interface KanbanCardProps {
   card: KanbanCardType;
@@ -48,13 +48,18 @@ function getDueDateInfo(dueDate: string): { label: string; isOverdue: boolean; i
 }
 
 export function KanbanCard({ card, overlay, index = 0 }: KanbanCardProps) {
-  const { dispatch } = useApp();
+  const { dispatch, todoCategories } = useApp();
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(card.title);
   const [editDescription, setEditDescription] = useState(card.description || '');
   const [editPriority, setEditPriority] = useState<CardPriority | ''>(card.priority || '');
   const [editDueDate, setEditDueDate] = useState(card.dueDate || '');
+  const [editCategoryId, setEditCategoryId] = useState<Id | ''>(card.categoryId || '');
   const [isExpanded, setIsExpanded] = useState(false);
+
+  const categoryName = card.categoryId
+    ? todoCategories.find(c => c.id === card.categoryId)?.name
+    : undefined;
 
   const {
     attributes,
@@ -98,6 +103,7 @@ export function KanbanCard({ card, overlay, index = 0 }: KanbanCardProps) {
           description: editDescription.trim() || undefined,
           priority: editPriority || undefined,
           dueDate: editDueDate || undefined,
+          categoryId: editCategoryId || undefined,
         },
       },
     });
@@ -114,6 +120,7 @@ export function KanbanCard({ card, overlay, index = 0 }: KanbanCardProps) {
       setEditDescription(card.description || '');
       setEditPriority(card.priority || '');
       setEditDueDate(card.dueDate || '');
+      setEditCategoryId(card.categoryId || '');
       setIsEditing(false);
     }
   };
@@ -193,6 +200,42 @@ export function KanbanCard({ card, overlay, index = 0 }: KanbanCardProps) {
           )}
         </div>
 
+        {/* Category selector */}
+        {todoCategories.length > 0 && (
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-xs text-text-dim">Category:</span>
+            <div className="flex gap-1 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setEditCategoryId('')}
+                className={cn(
+                  'px-2 py-1 text-[10px] font-medium rounded-md transition-all',
+                  editCategoryId === ''
+                    ? 'bg-surface-active text-text-primary'
+                    : 'text-text-dim hover:text-text-muted hover:bg-surface-hover'
+                )}
+              >
+                None
+              </button>
+              {todoCategories.map((cat) => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setEditCategoryId(cat.id)}
+                  className={cn(
+                    'px-2 py-1 text-[10px] font-medium rounded-md transition-all',
+                    editCategoryId === cat.id
+                      ? 'bg-accent/15 text-accent'
+                      : 'text-text-dim hover:text-text-muted hover:bg-surface-hover'
+                  )}
+                >
+                  {cat.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="flex gap-2">
           <button
             type="button"
@@ -212,6 +255,7 @@ export function KanbanCard({ card, overlay, index = 0 }: KanbanCardProps) {
               setEditDescription(card.description || '');
               setEditPriority(card.priority || '');
               setEditDueDate(card.dueDate || '');
+              setEditCategoryId(card.categoryId || '');
               setIsEditing(false);
             }}
             className="px-3 md:px-4 py-2 text-xs font-medium text-text-muted hover:text-text-primary active:scale-95 transition-all"
@@ -243,6 +287,28 @@ export function KanbanCard({ card, overlay, index = 0 }: KanbanCardProps) {
     >
       {/* Subtle gradient accent on hover - desktop only */}
       <div className="hidden md:block absolute inset-0 rounded-xl bg-gradient-to-br from-accent/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+
+      {/* Category banner */}
+      {categoryName && (
+        <div className={cn(
+          'relative flex items-center gap-1.5 mb-2 pb-2 border-b',
+          card.status === 'in-progress'
+            ? 'border-accent/20'
+            : 'border-border-subtle'
+        )}>
+          <svg className="w-3 h-3 text-accent flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+          </svg>
+          <span className={cn(
+            'text-[10px] font-semibold truncate',
+            card.status === 'in-progress'
+              ? 'text-accent'
+              : 'text-text-muted'
+          )}>
+            {categoryName}
+          </span>
+        </div>
+      )}
 
       <div className="relative flex items-start justify-between gap-2 md:gap-3">
         <div className="flex-1 min-w-0">

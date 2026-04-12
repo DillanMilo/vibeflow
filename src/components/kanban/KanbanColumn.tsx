@@ -6,7 +6,7 @@ import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useApp } from '@/context/AppContext';
 import { KanbanCard } from './KanbanCard';
 import { cn } from '@/lib/utils';
-import type { KanbanCard as KanbanCardType, KanbanStatus } from '@/types';
+import type { KanbanCard as KanbanCardType, KanbanStatus, Id } from '@/types';
 
 interface KanbanColumnProps {
   id: KanbanStatus;
@@ -31,11 +31,12 @@ const statusConfig = {
 };
 
 export function KanbanColumn({ id, title, cards, animationDelay = 0 }: KanbanColumnProps) {
-  const { dispatch } = useApp();
+  const { dispatch, todoCategories } = useApp();
   const [isAdding, setIsAdding] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newDescription, setNewDescription] = useState('');
   const [addToTop, setAddToTop] = useState(false);
+  const [newCategoryId, setNewCategoryId] = useState<Id | ''>('');
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   const { setNodeRef, isOver } = useDroppable({ id });
@@ -52,10 +53,12 @@ export function KanbanColumn({ id, title, cards, animationDelay = 0 }: KanbanCol
         description: newDescription.trim() || undefined,
         status: id,
         position: addToTop ? 'top' : 'bottom',
+        categoryId: newCategoryId || undefined,
       },
     });
     setNewTitle('');
     setNewDescription('');
+    setNewCategoryId('');
     setIsAdding(false);
   };
 
@@ -161,6 +164,42 @@ export function KanbanColumn({ id, title, cards, animationDelay = 0 }: KanbanCol
                   className="w-full bg-transparent text-xs text-text-secondary placeholder:text-text-dim resize-none focus:outline-none mb-3"
                 />
 
+                {/* Category selector */}
+                {todoCategories.length > 0 && (
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-xs text-text-dim">Category:</span>
+                    <div className="flex gap-1 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => setNewCategoryId('')}
+                        className={cn(
+                          'px-2 py-1 text-[10px] font-medium rounded-md transition-all',
+                          newCategoryId === ''
+                            ? 'bg-surface-active text-text-primary'
+                            : 'text-text-dim hover:text-text-muted hover:bg-surface-hover'
+                        )}
+                      >
+                        None
+                      </button>
+                      {todoCategories.map((cat) => (
+                        <button
+                          key={cat.id}
+                          type="button"
+                          onClick={() => setNewCategoryId(cat.id)}
+                          className={cn(
+                            'px-2 py-1 text-[10px] font-medium rounded-md transition-all',
+                            newCategoryId === cat.id
+                              ? 'bg-accent/15 text-accent'
+                              : 'text-text-dim hover:text-text-muted hover:bg-surface-hover'
+                          )}
+                        >
+                          {cat.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Add to top toggle */}
                 <label className="flex items-center gap-2 mb-3 cursor-pointer select-none">
                   <button
@@ -198,6 +237,7 @@ export function KanbanColumn({ id, title, cards, animationDelay = 0 }: KanbanCol
                     onClick={() => {
                       setNewTitle('');
                       setNewDescription('');
+                      setNewCategoryId('');
                       setIsAdding(false);
                     }}
                     className="px-3 md:px-4 py-2 text-xs font-medium text-text-muted hover:text-text-primary active:scale-95 transition-all"

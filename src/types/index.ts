@@ -11,6 +11,7 @@ export interface KanbanCard {
   status: KanbanStatus;
   priority?: CardPriority;
   dueDate?: string; // ISO date string YYYY-MM-DD
+  categoryId?: Id;
   createdAt: number;
 }
 

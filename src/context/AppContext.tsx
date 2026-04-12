@@ -33,7 +33,7 @@ type Action =
   | { type: 'DELETE_PROJECT'; payload: Id }
   | { type: 'SET_ACTIVE_PROJECT'; payload: Id }
   // Card actions (operate on active project)
-  | { type: 'ADD_CARD'; payload: { title: string; description?: string; status: KanbanStatus; position?: 'top' | 'bottom' } }
+  | { type: 'ADD_CARD'; payload: { title: string; description?: string; status: KanbanStatus; position?: 'top' | 'bottom'; categoryId?: Id } }
   | { type: 'UPDATE_CARD'; payload: { id: Id; updates: Partial<KanbanCard> } }
   | { type: 'DELETE_CARD'; payload: Id }
   | { type: 'MOVE_CARD'; payload: { id: Id; status: KanbanStatus; newIndex?: number } }
@@ -173,6 +173,7 @@ function appReducer(state: AppState, action: Action): AppState {
           title: action.payload.title,
           description: action.payload.description,
           status: action.payload.status,
+          categoryId: action.payload.categoryId,
           createdAt: Date.now(),
         };
 
@@ -315,6 +316,7 @@ function appReducer(state: AppState, action: Action): AppState {
           id: generateId(),
           title: todo.text,
           status: 'todo',
+          categoryId: todo.categoryId,
           createdAt: Date.now(),
         };
 
