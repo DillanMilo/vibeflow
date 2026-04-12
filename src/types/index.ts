@@ -14,10 +14,16 @@ export interface KanbanCard {
   createdAt: number;
 }
 
+export interface TodoCategory {
+  id: Id;
+  name: string;
+}
+
 export interface TodoItem {
   id: Id;
   text: string;
   completed: boolean;
+  categoryId?: Id;
 }
 
 export interface Column {
@@ -63,6 +69,7 @@ export interface Project {
   name: string;
   cards: KanbanCard[];
   todos: TodoItem[];
+  todoCategories: TodoCategory[];
   notes: string;
   events: CalendarEvent[];
   activities: ActivityEntry[];

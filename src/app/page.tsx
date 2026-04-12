@@ -733,7 +733,7 @@ export default function Home() {
               </div>
             )}
             {desktopRightPanel === 'calendar' && (
-              <div className="p-5 h-full overflow-hidden">
+              <div className="p-5 h-full overflow-y-auto">
                 <Calendar />
               </div>
             )}

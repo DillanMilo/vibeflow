@@ -12,7 +12,7 @@ import {
   type Dispatch,
 } from 'react';
 import { generateId } from '@/lib/utils';
-import type { AppState, KanbanCard, KanbanStatus, TodoItem, CalendarEvent, ActivityEntry, Id, Project } from '@/types';
+import type { AppState, KanbanCard, KanbanStatus, TodoItem, TodoCategory, CalendarEvent, ActivityEntry, Id, Project } from '@/types';
 import { STORAGE_KEY, PROJECT_COLORS } from '@/types';
 import { useAuth } from './AuthContext';
 import {
@@ -39,10 +39,14 @@ type Action =
   | { type: 'MOVE_CARD'; payload: { id: Id; status: KanbanStatus; newIndex?: number } }
   | { type: 'REORDER_CARDS'; payload: { status: KanbanStatus; cardIds: Id[] } }
   // Todo actions (operate on active project)
-  | { type: 'ADD_TODO'; payload: string }
+  | { type: 'ADD_TODO'; payload: string | { text: string; categoryId?: Id } }
   | { type: 'TOGGLE_TODO'; payload: Id }
   | { type: 'DELETE_TODO'; payload: Id }
   | { type: 'PROMOTE_TODO'; payload: Id }
+  // Todo category actions (operate on active project)
+  | { type: 'ADD_TODO_CATEGORY'; payload: string }
+  | { type: 'UPDATE_TODO_CATEGORY'; payload: { id: Id; name: string } }
+  | { type: 'DELETE_TODO_CATEGORY'; payload: Id }
   // Notes action (operates on active project)
   | { type: 'SET_NOTES'; payload: string }
   // Calendar actions (operate on active project)
@@ -57,6 +61,7 @@ const createDefaultProject = (name: string = 'My Project', color?: string): Proj
   name,
   cards: [],
   todos: [],
+  todoCategories: [],
   notes: '',
   events: [],
   activities: [],
@@ -102,13 +107,14 @@ const addActivity = (project: Project, type: ActivityEntry['type'], title: strin
 function appReducer(state: AppState, action: Action): AppState {
   switch (action.type) {
     case 'HYDRATE': {
-      // Ensure all projects have events and activities arrays (migration safety)
+      // Ensure all projects have events, activities, and todoCategories arrays (migration safety)
       const migratedPayload = {
         ...action.payload,
         projects: action.payload.projects.map(p => ({
           ...p,
           events: p.events || [],
           activities: p.activities || [],
+          todoCategories: p.todoCategories || [],
         })),
       };
       return migratedPayload;
@@ -255,6 +261,9 @@ function appReducer(state: AppState, action: Action): AppState {
 
     // === Todo Actions (operate on active project) ===
     case 'ADD_TODO': {
+      const todoData = typeof action.payload === 'string'
+        ? { text: action.payload, categoryId: undefined }
+        : action.payload;
       return updateActiveProject(state, (project) => {
         const updated = {
           ...project,
@@ -262,12 +271,13 @@ function appReducer(state: AppState, action: Action): AppState {
             ...project.todos,
             {
               id: generateId(),
-              text: action.payload,
+              text: todoData.text,
               completed: false,
+              categoryId: todoData.categoryId,
             },
           ],
         };
-        return addActivity(updated, 'todo_created', `Task "${action.payload}" added`);
+        return addActivity(updated, 'todo_created', `Task "${todoData.text}" added`);
       });
     }
 
@@ -314,6 +324,41 @@ function appReducer(state: AppState, action: Action): AppState {
           cards: [...project.cards, newCard],
         };
       });
+    }
+
+    // === Todo Category Actions ===
+    case 'ADD_TODO_CATEGORY': {
+      return updateActiveProject(state, (project) => ({
+        ...project,
+        todoCategories: [
+          ...project.todoCategories,
+          { id: generateId(), name: action.payload },
+        ],
+      }));
+    }
+
+    case 'UPDATE_TODO_CATEGORY': {
+      return updateActiveProject(state, (project) => ({
+        ...project,
+        todoCategories: project.todoCategories.map((cat) =>
+          cat.id === action.payload.id
+            ? { ...cat, name: action.payload.name }
+            : cat
+        ),
+      }));
+    }
+
+    case 'DELETE_TODO_CATEGORY': {
+      return updateActiveProject(state, (project) => ({
+        ...project,
+        todoCategories: project.todoCategories.filter((cat) => cat.id !== action.payload),
+        // Move todos from deleted category back to uncategorized
+        todos: project.todos.map((todo) =>
+          todo.categoryId === action.payload
+            ? { ...todo, categoryId: undefined }
+            : todo
+        ),
+      }));
     }
 
     // === Notes Action ===
@@ -375,6 +420,7 @@ interface AppContextType {
   activeProject: Project | null;
   cards: KanbanCard[];
   todos: TodoItem[];
+  todoCategories: TodoCategory[];
   notes: string;
   events: CalendarEvent[];
   activities: ActivityEntry[];
@@ -431,6 +477,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             name: 'My Project',
             cards: oldData.cards || [],
             todos: oldData.todos || [],
+            todoCategories: [],
             notes: oldData.notes || '',
             events: [],
             activities: [],
@@ -558,6 +605,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     activeProject,
     cards: activeProject?.cards || [],
     todos: activeProject?.todos || [],
+    todoCategories: activeProject?.todoCategories || [],
     notes: activeProject?.notes || '',
     events: activeProject?.events || [],
     activities: activeProject?.activities || [],
