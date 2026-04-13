@@ -6,7 +6,14 @@ import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useApp } from '@/context/AppContext';
 import { KanbanCard } from './KanbanCard';
 import { cn } from '@/lib/utils';
-import type { KanbanCard as KanbanCardType, KanbanStatus, TodoCategory, Id } from '@/types';
+import type { KanbanCard as KanbanCardType, KanbanStatus, CardPriority, TodoCategory, Id } from '@/types';
+
+const PRIORITY_CONFIG: Record<CardPriority, { label: string; color: string; bg: string }> = {
+  low: { label: 'Low', color: 'text-[#5b9bd5]', bg: 'bg-[#5b9bd5]/15' },
+  medium: { label: 'Med', color: 'text-[#e5a54b]', bg: 'bg-[#e5a54b]/15' },
+  high: { label: 'High', color: 'text-[#ff7b7b]', bg: 'bg-[#ff7b7b]/15' },
+  urgent: { label: 'Urgent', color: 'text-[#ff4444]', bg: 'bg-[#ff4444]/20' },
+};
 
 interface KanbanColumnProps {
   id: KanbanStatus;
@@ -42,6 +49,8 @@ export function KanbanColumn({ id, title, cards, animationDelay = 0 }: KanbanCol
   const [newDescription, setNewDescription] = useState('');
   const [addToTop, setAddToTop] = useState(false);
   const [newCategoryId, setNewCategoryId] = useState<Id | ''>('');
+  const [newPriority, setNewPriority] = useState<CardPriority | ''>('');
+  const [newDueDate, setNewDueDate] = useState('');
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
@@ -116,11 +125,15 @@ export function KanbanColumn({ id, title, cards, animationDelay = 0 }: KanbanCol
         status: id,
         position: addToTop ? 'top' : 'bottom',
         categoryId: newCategoryId || undefined,
+        priority: newPriority || undefined,
+        dueDate: newDueDate || undefined,
       },
     });
     setNewTitle('');
     setNewDescription('');
     setNewCategoryId('');
+    setNewPriority('');
+    setNewDueDate('');
     setIsAdding(false);
   };
 
@@ -284,6 +297,52 @@ export function KanbanColumn({ id, title, cards, animationDelay = 0 }: KanbanCol
                   className="w-full bg-transparent text-xs text-text-secondary placeholder:text-text-dim resize-none focus:outline-none mb-3"
                 />
 
+                {/* Priority selector */}
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-xs text-text-dim">Priority:</span>
+                  <div className="flex gap-1">
+                    {(['', 'low', 'medium', 'high', 'urgent'] as const).map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => setNewPriority(p)}
+                        className={cn(
+                          'px-2 py-1 text-[10px] font-medium rounded-md transition-all',
+                          newPriority === p
+                            ? p === '' ? 'bg-surface-active text-text-primary' : `${PRIORITY_CONFIG[p as CardPriority].bg} ${PRIORITY_CONFIG[p as CardPriority].color}`
+                            : 'text-text-dim hover:text-text-muted hover:bg-surface-hover'
+                        )}
+                      >
+                        {p === '' ? 'None' : PRIORITY_CONFIG[p as CardPriority].label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Due date */}
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-xs text-text-dim">Due:</span>
+                  <input
+                    type="date"
+                    value={newDueDate}
+                    onChange={(e) => setNewDueDate(e.target.value)}
+                    className={cn(
+                      'bg-background border border-border rounded-lg px-2 py-1 text-xs',
+                      'text-text-primary [color-scheme:dark]',
+                      'focus:outline-none focus:border-border-accent'
+                    )}
+                  />
+                  {newDueDate && (
+                    <button
+                      type="button"
+                      onClick={() => setNewDueDate('')}
+                      className="text-xs text-text-dim hover:text-danger transition-colors"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+
                 {/* Category selector */}
                 {todoCategories.length > 0 && (
                   <div className="flex items-center gap-2 mb-3">
@@ -358,6 +417,8 @@ export function KanbanColumn({ id, title, cards, animationDelay = 0 }: KanbanCol
                       setNewTitle('');
                       setNewDescription('');
                       setNewCategoryId('');
+                      setNewPriority('');
+                      setNewDueDate('');
                       setIsAdding(false);
                     }}
                     className="px-3 md:px-4 py-2 text-xs font-medium text-text-muted hover:text-text-primary active:scale-95 transition-all"
