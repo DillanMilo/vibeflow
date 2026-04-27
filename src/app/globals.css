@@ -409,6 +409,25 @@ input[type="time"]::-webkit-calendar-picker-indicator {
   filter: invert(0.7);
 }
 
+/* Highlight flash for cards navigated to from the Today view */
+@keyframes cardFlash {
+  0% {
+    box-shadow: 0 0 0 0 var(--accent-glow), 0 0 0 0 var(--accent-glow);
+    border-color: var(--accent);
+  }
+  40% {
+    box-shadow: 0 0 0 6px rgba(229, 165, 75, 0.18), 0 0 24px var(--accent-glow);
+    border-color: var(--accent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent, 0 0 0 0 transparent;
+  }
+}
+
+.card-flash {
+  animation: cardFlash 1.6s ease-out;
+}
+
 /* Panel tab active indicator animation */
 @keyframes tabSlide {
   from {

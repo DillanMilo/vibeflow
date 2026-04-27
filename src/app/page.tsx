@@ -1,15 +1,17 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useCallback, useState, useRef, useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
 import { useAuth } from '@/context/AuthContext';
 import { KanbanBoard } from '@/components/kanban/KanbanBoard';
 import { Sidebar } from '@/components/sidebar/Sidebar';
 import { Calendar } from '@/components/calendar/Calendar';
+import { TodayView } from '@/components/today/TodayView';
 import { cn } from '@/lib/utils';
 import { PROJECT_COLORS } from '@/types';
 
-type MobileView = 'board' | 'tasks' | 'calendar' | 'notes';
+type MobileView = 'today' | 'board' | 'tasks' | 'calendar' | 'notes';
+type DesktopView = 'today' | 'board';
 
 function LoadingSkeleton() {
   return (
@@ -557,7 +559,67 @@ function ProgressBar() {
   );
 }
 
-function Header({ searchQuery, onSearchChange }: { searchQuery: string; onSearchChange: (q: string) => void }) {
+function DesktopViewToggle({
+  view,
+  onChange,
+}: {
+  view: DesktopView;
+  onChange: (v: DesktopView) => void;
+}) {
+  const items: { id: DesktopView; label: string; icon: React.ReactNode }[] = [
+    {
+      id: 'today',
+      label: 'Today',
+      icon: (
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      ),
+    },
+    {
+      id: 'board',
+      label: 'Board',
+      icon: (
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
+        </svg>
+      ),
+    },
+  ];
+
+  return (
+    <div className="hidden md:flex items-center gap-1 p-1 bg-surface border border-border-subtle rounded-lg">
+      {items.map((item) => (
+        <button
+          key={item.id}
+          type="button"
+          onClick={() => onChange(item.id)}
+          className={cn(
+            'flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all duration-200',
+            view === item.id
+              ? 'bg-accent text-background shadow-sm'
+              : 'text-text-muted hover:text-text-primary hover:bg-surface-hover'
+          )}
+        >
+          {item.icon}
+          {item.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function Header({
+  searchQuery,
+  onSearchChange,
+  desktopView,
+  onDesktopViewChange,
+}: {
+  searchQuery: string;
+  onSearchChange: (q: string) => void;
+  desktopView: DesktopView;
+  onDesktopViewChange: (v: DesktopView) => void;
+}) {
   return (
     <header className="flex-shrink-0 h-14 md:h-16 border-b border-border-subtle bg-background px-4 md:px-6 flex items-center justify-between animate-fade-in relative z-50">
       <div className="flex items-center gap-3 md:gap-4">
@@ -582,6 +644,9 @@ function Header({ searchQuery, onSearchChange }: { searchQuery: string; onSearch
 
         {/* Project selector */}
         <ProjectSelector />
+
+        {/* Desktop view toggle - Today vs Board */}
+        <DesktopViewToggle view={desktopView} onChange={onDesktopViewChange} />
       </div>
 
       {/* Right side - search, sync status and user menu */}
@@ -602,6 +667,15 @@ function Header({ searchQuery, onSearchChange }: { searchQuery: string; onSearch
 
 function MobileNav({ activeView, onViewChange }: { activeView: MobileView; onViewChange: (view: MobileView) => void }) {
   const navItems: { id: MobileView; label: string; icon: React.ReactNode }[] = [
+    {
+      id: 'today',
+      label: 'Today',
+      icon: (
+        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      ),
+    },
     {
       id: 'board',
       label: 'Board',
@@ -672,10 +746,38 @@ function MobileNav({ activeView, onViewChange }: { activeView: MobileView; onVie
 }
 
 export default function Home() {
-  const { isHydrated } = useApp();
-  const [mobileView, setMobileView] = useState<MobileView>('board');
+  const { isHydrated, dispatch, state } = useApp();
+  const [mobileView, setMobileView] = useState<MobileView>('today');
+  const [desktopView, setDesktopView] = useState<DesktopView>('today');
   const [desktopRightPanel, setDesktopRightPanel] = useState<'tasks' | 'notes' | 'calendar'>('tasks');
   const [searchQuery, setSearchQuery] = useState('');
+
+  const handleNavigateToCard = useCallback(
+    (projectId: string, cardId: string) => {
+      if (state.activeProjectId !== projectId) {
+        dispatch({ type: 'SET_ACTIVE_PROJECT', payload: projectId });
+      }
+      setDesktopView('board');
+      setMobileView('board');
+
+      // Wait for the board to mount, then scroll + flash highlight
+      const tryScroll = (attempt = 0) => {
+        const el = document.getElementById(`card-${cardId}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.classList.remove('card-flash');
+          // Force a reflow so the animation can replay if triggered again
+          void el.offsetWidth;
+          el.classList.add('card-flash');
+          window.setTimeout(() => el.classList.remove('card-flash'), 1700);
+        } else if (attempt < 10) {
+          window.setTimeout(() => tryScroll(attempt + 1), 60);
+        }
+      };
+      window.setTimeout(() => tryScroll(), 80);
+    },
+    [dispatch, state.activeProjectId]
+  );
 
   if (!isHydrated) {
     return <LoadingSkeleton />;
@@ -683,14 +785,25 @@ export default function Home() {
 
   return (
     <div className="flex flex-col h-dvh bg-background overflow-hidden">
-      <Header searchQuery={searchQuery} onSearchChange={setSearchQuery} />
-      <ProgressBar />
+      <Header
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        desktopView={desktopView}
+        onDesktopViewChange={setDesktopView}
+      />
+      {desktopView === 'board' && <ProgressBar />}
 
       {/* Desktop layout */}
       <div className="hidden md:flex flex-1 overflow-hidden">
-        <main className="flex-1 overflow-hidden">
-          <KanbanBoard searchQuery={searchQuery} />
-        </main>
+        {desktopView === 'today' ? (
+          <main className="flex-1 overflow-hidden animate-fade-in">
+            <TodayView onNavigateToCard={handleNavigateToCard} />
+          </main>
+        ) : (
+          <>
+            <main className="flex-1 overflow-hidden">
+              <KanbanBoard searchQuery={searchQuery} />
+            </main>
 
         {/* Desktop right panel with tab switcher */}
         <div className="w-[380px] flex-shrink-0 border-l border-border-subtle bg-background-elevated flex flex-col h-full animate-slide-in">
@@ -739,10 +852,17 @@ export default function Home() {
             )}
           </div>
         </div>
+          </>
+        )}
       </div>
 
       {/* Mobile layout */}
       <div className="flex md:hidden flex-1 overflow-hidden">
+        {mobileView === 'today' && (
+          <div className="flex-1 overflow-hidden animate-fade-in">
+            <TodayView onNavigateToCard={handleNavigateToCard} />
+          </div>
+        )}
         {mobileView === 'board' && (
           <main className="flex-1 overflow-hidden animate-fade-in">
             <KanbanBoard searchQuery={searchQuery} />

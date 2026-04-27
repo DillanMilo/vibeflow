@@ -270,6 +270,7 @@ export function KanbanCard({ card, overlay, index = 0 }: KanbanCardProps) {
   return (
     <div
       ref={setNodeRef}
+      id={overlay ? undefined : `card-${card.id}`}
       style={style}
       className={cn(
         'group relative bg-surface border border-border rounded-lg md:rounded-xl p-3 md:p-4',
@@ -277,6 +278,7 @@ export function KanbanCard({ card, overlay, index = 0 }: KanbanCardProps) {
         'transition-all duration-200',
         'hover:border-border-accent md:hover:shadow-md',
         'md:active:scale-[0.98]',
+        'scroll-mt-24',
         isDragging && 'opacity-40 scale-[0.98]',
         overlay && 'shadow-xl rotate-2 border-accent/50 bg-surface/95 backdrop-blur-sm',
         !overlay && 'animate-fade-in',
