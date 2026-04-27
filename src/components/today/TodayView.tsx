@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useApp } from '@/context/AppContext';
 import { cn } from '@/lib/utils';
 import type { KanbanCard, CardPriority, KanbanStatus, Project } from '@/types';
@@ -13,6 +13,11 @@ interface TodayViewProps {
 interface CardWithProject {
   card: KanbanCard;
   project: Project;
+}
+
+interface ProjectGroup {
+  project: Project;
+  items: CardWithProject[];
 }
 
 const PRIORITY_CONFIG: Record<CardPriority, { label: string; color: string; bg: string; rank: number }> = {
@@ -34,25 +39,50 @@ const STATUS_DOT: Record<KanbanStatus, string> = {
   'complete': 'bg-success',
 };
 
-function todayIso(): string {
-  // Local date in YYYY-MM-DD (avoids UTC offset bugs)
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+function isoFromDate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
-function daysFromToday(dueDate: string): number {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const due = new Date(dueDate + 'T00:00:00');
-  return Math.round((due.getTime() - today.getTime()) / 86400000);
+function todayIso(): string {
+  return isoFromDate(new Date());
+}
+
+function shiftDate(iso: string, days: number): string {
+  const d = new Date(iso + 'T00:00:00');
+  d.setDate(d.getDate() + days);
+  return isoFromDate(d);
+}
+
+function diffDays(fromIso: string, toIso: string): number {
+  const a = new Date(fromIso + 'T00:00:00').getTime();
+  const b = new Date(toIso + 'T00:00:00').getTime();
+  return Math.round((b - a) / 86400000);
+}
+
+function relativeLabel(iso: string, today: string): string {
+  const d = diffDays(today, iso);
+  if (d === 0) return 'Today';
+  if (d === 1) return 'Tomorrow';
+  if (d === -1) return 'Yesterday';
+  if (d > 1 && d <= 6) {
+    return new Date(iso + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long' });
+  }
+  return new Date(iso + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function fullDateLabel(iso: string): string {
+  return new Date(iso + 'T00:00:00').toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  });
 }
 
 function sortCards(items: CardWithProject[]): CardWithProject[] {
   return [...items].sort((a, b) => {
-    // Urgent/high first, then by status (in-progress before todo), then by title
     const aRank = a.card.priority ? PRIORITY_CONFIG[a.card.priority].rank : 4;
     const bRank = b.card.priority ? PRIORITY_CONFIG[b.card.priority].rank : 4;
     if (aRank !== bRank) return aRank - bRank;
@@ -64,21 +94,47 @@ function sortCards(items: CardWithProject[]): CardWithProject[] {
   });
 }
 
-function TodayCard({ item, onClick }: { item: CardWithProject; onClick: () => void }) {
+function groupByProject(items: CardWithProject[]): ProjectGroup[] {
+  const map = new Map<string, ProjectGroup>();
+  for (const item of items) {
+    const existing = map.get(item.project.id);
+    if (existing) {
+      existing.items.push(item);
+    } else {
+      map.set(item.project.id, { project: item.project, items: [item] });
+    }
+  }
+  const groups = Array.from(map.values());
+  for (const g of groups) g.items = sortCards(g.items);
+  groups.sort((a, b) => {
+    if (a.items.length !== b.items.length) return b.items.length - a.items.length;
+    return a.project.name.localeCompare(b.project.name);
+  });
+  return groups;
+}
+
+function TodayCard({
+  item,
+  onClick,
+  showProject,
+}: {
+  item: CardWithProject;
+  onClick: () => void;
+  showProject: boolean;
+}) {
   const { dispatch, state } = useApp();
   const { card, project } = item;
   const isComplete = card.status === 'complete';
   const projectColor = project.color || PROJECT_COLORS[0];
-  const overdueDays = card.dueDate ? -daysFromToday(card.dueDate) : 0;
+  const today = todayIso();
+  const overdueDays = card.dueDate ? diffDays(card.dueDate, today) : 0;
   const isOverdue = overdueDays > 0 && !isComplete;
 
   const handleToggleComplete = (e: React.MouseEvent) => {
     e.stopPropagation();
-    // MOVE_CARD operates on the active project, so set it first if needed
     if (state.activeProjectId !== project.id) {
       dispatch({ type: 'SET_ACTIVE_PROJECT', payload: project.id });
     }
-    // Defer the move so the active project switch is applied first
     queueMicrotask(() => {
       dispatch({
         type: 'MOVE_CARD',
@@ -102,14 +158,12 @@ function TodayCard({ item, onClick }: { item: CardWithProject; onClick: () => vo
         isComplete && 'opacity-60'
       )}
     >
-      {/* Left color accent stripe based on project */}
       <div
         className="absolute left-0 top-3 bottom-3 w-0.5 rounded-full"
         style={{ backgroundColor: projectColor }}
       />
 
       <div className="flex items-start gap-3">
-        {/* Complete checkbox */}
         <button
           type="button"
           onClick={handleToggleComplete}
@@ -128,22 +182,22 @@ function TodayCard({ item, onClick }: { item: CardWithProject; onClick: () => vo
         </button>
 
         <div className="flex-1 min-w-0">
-          {/* Project + status row */}
           <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-text-muted">
-              <span
-                className="w-2 h-2 rounded-full flex-shrink-0"
-                style={{ backgroundColor: projectColor }}
-              />
-              <span className="truncate max-w-[140px]">{project.name}</span>
-            </span>
+            {showProject && (
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-text-muted">
+                <span
+                  className="w-2 h-2 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: projectColor }}
+                />
+                <span className="truncate max-w-[140px]">{project.name}</span>
+              </span>
+            )}
             <span className="inline-flex items-center gap-1.5 text-[11px] text-text-dim">
               <span className={cn('w-1.5 h-1.5 rounded-full', STATUS_DOT[card.status])} />
               {STATUS_LABELS[card.status]}
             </span>
           </div>
 
-          {/* Title */}
           <p className={cn(
             'text-sm md:text-[15px] font-medium text-text-primary leading-snug',
             isComplete && 'line-through text-text-muted'
@@ -151,14 +205,12 @@ function TodayCard({ item, onClick }: { item: CardWithProject; onClick: () => vo
             {card.title}
           </p>
 
-          {/* Description preview */}
           {card.description && (
             <p className="mt-1 text-xs text-text-muted leading-relaxed line-clamp-2">
               {card.description}
             </p>
           )}
 
-          {/* Badges */}
           <div className="flex items-center gap-1.5 mt-2 flex-wrap">
             {card.priority && (
               <span className={cn(
@@ -185,7 +237,6 @@ function TodayCard({ item, onClick }: { item: CardWithProject; onClick: () => vo
           </div>
         </div>
 
-        {/* Chevron */}
         <svg
           className="hidden md:block flex-shrink-0 w-4 h-4 text-text-dim group-hover:text-accent group-hover:translate-x-0.5 transition-all mt-1"
           fill="none"
@@ -200,6 +251,43 @@ function TodayCard({ item, onClick }: { item: CardWithProject; onClick: () => vo
   );
 }
 
+function ProjectGroupBlock({
+  group,
+  onNavigateToCard,
+}: {
+  group: ProjectGroup;
+  onNavigateToCard: (projectId: string, cardId: string) => void;
+}) {
+  const { project, items } = group;
+  const projectColor = project.color || PROJECT_COLORS[0];
+  return (
+    <div className="mb-4 last:mb-0">
+      <div className="flex items-center gap-2 mb-2 px-1">
+        <span
+          className="w-2 h-2 rounded-full flex-shrink-0"
+          style={{ backgroundColor: projectColor }}
+        />
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-text-secondary truncate">
+          {project.name}
+        </span>
+        <span className="text-[10px] text-text-dim font-mono">{items.length}</span>
+        <div className="flex-1 h-px bg-border-subtle ml-1" />
+      </div>
+      <div className="space-y-2">
+        {items.map((item, i) => (
+          <div key={item.card.id} style={{ animationDelay: `${i * 30}ms` }}>
+            <TodayCard
+              item={item}
+              showProject={false}
+              onClick={() => onNavigateToCard(item.project.id, item.card.id)}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function SectionHeader({
   title,
   count,
@@ -208,25 +296,101 @@ function SectionHeader({
 }: {
   title: string;
   count: number;
-  tone: 'danger' | 'accent' | 'success';
+  tone: 'danger' | 'accent' | 'success' | 'neutral';
   icon: React.ReactNode;
 }) {
   const toneClasses: Record<typeof tone, string> = {
     danger: 'text-danger bg-danger/10',
     accent: 'text-accent bg-accent/10',
     success: 'text-success bg-success/10',
+    neutral: 'text-text-secondary bg-surface',
   };
   return (
     <div className="flex items-center gap-2.5 mb-3 px-1">
       <span className={cn('w-7 h-7 rounded-lg flex items-center justify-center', toneClasses[tone])}>
         {icon}
       </span>
-      <h2 className="text-sm font-semibold text-text-primary tracking-tight">
-        {title}
-      </h2>
-      <span className="text-xs text-text-muted font-mono">
-        {count}
-      </span>
+      <h2 className="text-sm font-semibold text-text-primary tracking-tight">{title}</h2>
+      <span className="text-xs text-text-muted font-mono">{count}</span>
+    </div>
+  );
+}
+
+function WeekStrip({
+  selectedDate,
+  today,
+  countByDate,
+  onSelect,
+}: {
+  selectedDate: string;
+  today: string;
+  countByDate: Map<string, number>;
+  onSelect: (iso: string) => void;
+}) {
+  const days = useMemo(() => {
+    const arr: { iso: string; weekday: string; dayNum: number }[] = [];
+    const base = new Date(today + 'T00:00:00');
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(base);
+      d.setDate(base.getDate() + i);
+      arr.push({
+        iso: isoFromDate(d),
+        weekday: d.toLocaleDateString('en-US', { weekday: 'short' }),
+        dayNum: d.getDate(),
+      });
+    }
+    return arr;
+  }, [today]);
+
+  return (
+    <div className="flex items-stretch gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
+      {days.map(({ iso, weekday, dayNum }) => {
+        const isSelected = iso === selectedDate;
+        const isToday = iso === today;
+        const count = countByDate.get(iso) || 0;
+        return (
+          <button
+            key={iso}
+            type="button"
+            onClick={() => onSelect(iso)}
+            className={cn(
+              'flex-1 min-w-[56px] flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-all duration-200 relative',
+              'border',
+              isSelected
+                ? 'bg-accent text-background border-accent shadow-sm'
+                : isToday
+                ? 'bg-surface border-border-accent text-text-primary hover:bg-surface-hover'
+                : 'bg-surface/50 border-border-subtle text-text-muted hover:text-text-primary hover:bg-surface-hover hover:border-border'
+            )}
+          >
+            <span className={cn(
+              'text-[10px] font-semibold uppercase tracking-wider',
+              isSelected ? 'text-background/80' : 'text-text-dim'
+            )}>
+              {weekday}
+            </span>
+            <span className={cn(
+              'text-base font-semibold mt-0.5',
+              isSelected ? 'text-background' : isToday ? 'text-accent' : 'text-text-primary'
+            )}>
+              {dayNum}
+            </span>
+            {count > 0 && (
+              <span className={cn(
+                'mt-1 text-[9px] font-mono px-1.5 py-0.5 rounded-full',
+                isSelected
+                  ? 'bg-background/20 text-background'
+                  : 'bg-accent/15 text-accent'
+              )}>
+                {count}
+              </span>
+            )}
+            {!count && isToday && !isSelected && (
+              <span className="mt-1 w-1 h-1 rounded-full bg-accent" />
+            )}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -234,73 +398,96 @@ function SectionHeader({
 export function TodayView({ onNavigateToCard }: TodayViewProps) {
   const { state } = useApp();
   const today = todayIso();
+  const [selectedDate, setSelectedDate] = useState<string>(today);
 
-  const { overdue, dueToday, completedToday } = useMemo(() => {
+  // Build a map of incomplete-task counts per ISO date for the week strip
+  const countByDate = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const project of state.projects) {
+      for (const card of project.cards) {
+        if (!card.dueDate || card.status === 'complete') continue;
+        map.set(card.dueDate, (map.get(card.dueDate) || 0) + 1);
+      }
+    }
+    return map;
+  }, [state.projects]);
+
+  const isToday = selectedDate === today;
+  const isPast = !isToday && selectedDate < today;
+
+  // Cards for the various sections
+  const { dueOnDate, overdue, completedOnDate } = useMemo(() => {
+    const dueOnDate: CardWithProject[] = [];
     const overdue: CardWithProject[] = [];
-    const dueToday: CardWithProject[] = [];
-    const completedToday: CardWithProject[] = [];
+    const completedOnDate: CardWithProject[] = [];
 
     for (const project of state.projects) {
       for (const card of project.cards) {
         if (!card.dueDate) continue;
         if (card.status === 'complete') {
-          if (card.dueDate === today) {
-            completedToday.push({ card, project });
-          }
+          if (card.dueDate === selectedDate) completedOnDate.push({ card, project });
           continue;
         }
-        if (card.dueDate < today) {
+        // Active (not complete) cards
+        if (card.dueDate === selectedDate) {
+          dueOnDate.push({ card, project });
+        } else if (isToday && card.dueDate < today) {
           overdue.push({ card, project });
-        } else if (card.dueDate === today) {
-          dueToday.push({ card, project });
         }
       }
     }
+    return { dueOnDate, overdue, completedOnDate };
+  }, [state.projects, selectedDate, today, isToday]);
 
-    return {
-      overdue: sortCards(overdue),
-      dueToday: sortCards(dueToday),
-      completedToday: sortCards(completedToday),
-    };
-  }, [state.projects, today]);
+  const dueGroups = useMemo(() => groupByProject(dueOnDate), [dueOnDate]);
+  const overdueGroups = useMemo(() => groupByProject(overdue), [overdue]);
+  const completedGroups = useMemo(() => groupByProject(completedOnDate), [completedOnDate]);
 
-  const totalActive = overdue.length + dueToday.length;
-  const dateLabel = new Date().toLocaleDateString('en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-  });
+  const totalActive = dueOnDate.length + (isToday ? overdue.length : 0);
+  const projectsWithWork = new Set([
+    ...dueOnDate.map((i) => i.project.id),
+    ...(isToday ? overdue.map((i) => i.project.id) : []),
+  ]);
+
+  const heroLabel = relativeLabel(selectedDate, today);
 
   return (
     <div className="h-full overflow-y-auto">
       <div className="max-w-3xl mx-auto px-4 md:px-8 py-6 md:py-10 pb-12">
         {/* Hero header */}
-        <div className="mb-6 md:mb-10 animate-fade-in">
+        <div className="mb-5 md:mb-8 animate-fade-in">
           <div className="flex items-center gap-2 text-xs md:text-sm font-medium text-accent uppercase tracking-[0.18em] mb-2">
             <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-60" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-accent" />
+              {isToday && (
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-60" />
+              )}
+              <span className={cn(
+                'relative inline-flex h-2 w-2 rounded-full',
+                isToday ? 'bg-accent' : 'bg-text-muted'
+              )} />
             </span>
-            {dateLabel}
+            {fullDateLabel(selectedDate)}
           </div>
           <h1 className="text-4xl md:text-6xl tracking-tight leading-none">
-            <span className="font-semibold text-text-primary">Today</span>
+            <span className="font-semibold text-text-primary">{heroLabel}</span>
             <span className="font-display italic text-accent">.</span>
           </h1>
           <p className="mt-3 text-sm md:text-base text-text-secondary leading-relaxed">
-            {totalActive === 0 && completedToday.length === 0 ? (
-              <>Nothing scheduled. Plan a task or enjoy the calm.</>
-            ) : totalActive === 0 ? (
-              <>You&apos;re all caught up. Nice work today.</>
+            {totalActive === 0 && completedOnDate.length === 0 ? (
+              isToday ? (
+                <>Nothing scheduled. Plan a task or enjoy the calm.</>
+              ) : isPast ? (
+                <>No tasks were due on this day.</>
+              ) : (
+                <>No tasks scheduled. A clean slate.</>
+              )
             ) : (
               <>
                 <span className="font-medium text-text-primary">{totalActive}</span>{' '}
                 {totalActive === 1 ? 'task' : 'tasks'} across{' '}
-                <span className="font-medium text-text-primary">
-                  {new Set([...overdue, ...dueToday].map(i => i.project.id)).size}
-                </span>{' '}
-                {new Set([...overdue, ...dueToday].map(i => i.project.id)).size === 1 ? 'project' : 'projects'}
-                {overdue.length > 0 && (
+                <span className="font-medium text-text-primary">{projectsWithWork.size}</span>{' '}
+                {projectsWithWork.size === 1 ? 'project' : 'projects'}
+                {isToday && overdue.length > 0 && (
                   <>
                     {' · '}
                     <span className="text-danger font-medium">{overdue.length} overdue</span>
@@ -309,40 +496,56 @@ export function TodayView({ onNavigateToCard }: TodayViewProps) {
               </>
             )}
           </p>
+        </div>
 
-          {/* Stat chips */}
-          {(totalActive > 0 || completedToday.length > 0) && (
-            <div className="flex flex-wrap gap-2 mt-5">
-              {overdue.length > 0 && (
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-danger/10 border border-danger/20">
-                  <div className="w-1.5 h-1.5 rounded-full bg-danger" />
-                  <span className="text-xs font-medium text-danger">
-                    {overdue.length} overdue
-                  </span>
-                </div>
-              )}
-              {dueToday.length > 0 && (
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-accent/10 border border-accent/20">
-                  <div className="w-1.5 h-1.5 rounded-full bg-accent" />
-                  <span className="text-xs font-medium text-accent">
-                    {dueToday.length} due today
-                  </span>
-                </div>
-              )}
-              {completedToday.length > 0 && (
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-success/10 border border-success/20">
-                  <div className="w-1.5 h-1.5 rounded-full bg-success" />
-                  <span className="text-xs font-medium text-success">
-                    {completedToday.length} completed
-                  </span>
-                </div>
+        {/* Day navigator */}
+        <div className="mb-6 md:mb-8 animate-fade-in" style={{ animationDelay: '60ms' }}>
+          <div className="flex items-center gap-2 mb-3">
+            <button
+              type="button"
+              onClick={() => setSelectedDate(shiftDate(selectedDate, -1))}
+              className="flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-lg bg-surface border border-border-subtle text-text-secondary hover:text-text-primary hover:bg-surface-hover hover:border-border transition-all"
+              aria-label="Previous day"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <div className="flex-1 text-center">
+              {!isToday && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedDate(today)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-accent hover:bg-accent/10 rounded-lg transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                  </svg>
+                  Jump to today
+                </button>
               )}
             </div>
-          )}
+            <button
+              type="button"
+              onClick={() => setSelectedDate(shiftDate(selectedDate, 1))}
+              className="flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-lg bg-surface border border-border-subtle text-text-secondary hover:text-text-primary hover:bg-surface-hover hover:border-border transition-all"
+              aria-label="Next day"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
+          <WeekStrip
+            selectedDate={selectedDate}
+            today={today}
+            countByDate={countByDate}
+            onSelect={setSelectedDate}
+          />
         </div>
 
         {/* Empty state */}
-        {totalActive === 0 && completedToday.length === 0 && (
+        {totalActive === 0 && completedOnDate.length === 0 && (
           <div className="text-center py-12 md:py-20 animate-fade-in-up">
             <div className="relative inline-flex items-center justify-center w-20 h-20 md:w-24 md:h-24 mb-6">
               <div className="absolute inset-0 bg-accent/10 rounded-3xl blur-xl" />
@@ -353,17 +556,19 @@ export function TodayView({ onNavigateToCard }: TodayViewProps) {
               </div>
             </div>
             <h3 className="text-lg md:text-xl font-semibold text-text-primary mb-2">
-              All clear today
+              {isToday ? 'All clear today' : isPast ? 'Nothing was due' : 'Nothing scheduled'}
             </h3>
             <p className="text-sm text-text-muted max-w-sm mx-auto leading-relaxed">
-              No tasks are due today. Add a due date to a card to see it appear here.
+              {isToday
+                ? 'No tasks are due today. Add a due date to a card to see it appear here.'
+                : 'No tasks have a due date for this day yet.'}
             </p>
           </div>
         )}
 
-        {/* Overdue */}
-        {overdue.length > 0 && (
-          <section className="mb-8 animate-fade-in-up" style={{ animationDelay: '50ms' }}>
+        {/* Overdue (only shown when viewing today) */}
+        {isToday && overdueGroups.length > 0 && (
+          <section className="mb-8 animate-fade-in-up" style={{ animationDelay: '80ms' }}>
             <SectionHeader
               title="Overdue"
               count={overdue.length}
@@ -374,25 +579,24 @@ export function TodayView({ onNavigateToCard }: TodayViewProps) {
                 </svg>
               }
             />
-            <div className="space-y-2">
-              {overdue.map((item, i) => (
-                <div key={item.card.id} style={{ animationDelay: `${i * 30}ms` }}>
-                  <TodayCard
-                    item={item}
-                    onClick={() => onNavigateToCard(item.project.id, item.card.id)}
-                  />
-                </div>
+            <div>
+              {overdueGroups.map((group) => (
+                <ProjectGroupBlock
+                  key={group.project.id}
+                  group={group}
+                  onNavigateToCard={onNavigateToCard}
+                />
               ))}
             </div>
           </section>
         )}
 
-        {/* Due today */}
-        {dueToday.length > 0 && (
-          <section className="mb-8 animate-fade-in-up" style={{ animationDelay: '100ms' }}>
+        {/* Due on selected date */}
+        {dueGroups.length > 0 && (
+          <section className="mb-8 animate-fade-in-up" style={{ animationDelay: '120ms' }}>
             <SectionHeader
-              title="Due today"
-              count={dueToday.length}
+              title={isToday ? 'Due today' : `Due ${heroLabel}`}
+              count={dueOnDate.length}
               tone="accent"
               icon={
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
@@ -400,25 +604,24 @@ export function TodayView({ onNavigateToCard }: TodayViewProps) {
                 </svg>
               }
             />
-            <div className="space-y-2">
-              {dueToday.map((item, i) => (
-                <div key={item.card.id} style={{ animationDelay: `${i * 30}ms` }}>
-                  <TodayCard
-                    item={item}
-                    onClick={() => onNavigateToCard(item.project.id, item.card.id)}
-                  />
-                </div>
+            <div>
+              {dueGroups.map((group) => (
+                <ProjectGroupBlock
+                  key={group.project.id}
+                  group={group}
+                  onNavigateToCard={onNavigateToCard}
+                />
               ))}
             </div>
           </section>
         )}
 
-        {/* Completed today */}
-        {completedToday.length > 0 && (
-          <section className="mb-8 animate-fade-in-up" style={{ animationDelay: '150ms' }}>
+        {/* Completed on selected date */}
+        {completedGroups.length > 0 && (
+          <section className="mb-8 animate-fade-in-up" style={{ animationDelay: '160ms' }}>
             <SectionHeader
-              title="Completed today"
-              count={completedToday.length}
+              title={isToday ? 'Completed today' : 'Completed'}
+              count={completedOnDate.length}
               tone="success"
               icon={
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
@@ -426,14 +629,13 @@ export function TodayView({ onNavigateToCard }: TodayViewProps) {
                 </svg>
               }
             />
-            <div className="space-y-2">
-              {completedToday.map((item, i) => (
-                <div key={item.card.id} style={{ animationDelay: `${i * 30}ms` }}>
-                  <TodayCard
-                    item={item}
-                    onClick={() => onNavigateToCard(item.project.id, item.card.id)}
-                  />
-                </div>
+            <div>
+              {completedGroups.map((group) => (
+                <ProjectGroupBlock
+                  key={group.project.id}
+                  group={group}
+                  onNavigateToCard={onNavigateToCard}
+                />
               ))}
             </div>
           </section>
