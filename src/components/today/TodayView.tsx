@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useApp } from '@/context/AppContext';
 import { cn } from '@/lib/utils';
 import type { KanbanCard, CardPriority, KanbanStatus, Project } from '@/types';
@@ -143,6 +143,42 @@ function TodayCard({
     });
   };
 
+  const dateInputRef = useRef<HTMLInputElement>(null);
+  const tomorrowIso = shiftDate(today, 1);
+
+  const reschedule = (newIso: string) => {
+    if (!newIso || newIso === card.dueDate) return;
+    if (state.activeProjectId !== project.id) {
+      dispatch({ type: 'SET_ACTIVE_PROJECT', payload: project.id });
+    }
+    queueMicrotask(() => {
+      dispatch({
+        type: 'UPDATE_CARD',
+        payload: { id: card.id, updates: { dueDate: newIso } },
+      });
+    });
+  };
+
+  const handleMoveToTomorrow = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    reschedule(tomorrowIso);
+  };
+
+  const handlePickDate = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const input = dateInputRef.current;
+    if (!input) return;
+    if (typeof input.showPicker === 'function') {
+      try {
+        input.showPicker();
+        return;
+      } catch {
+        // fall through to click()
+      }
+    }
+    input.click();
+  };
+
   return (
     <button
       type="button"
@@ -233,6 +269,47 @@ function TodayCard({
                 </svg>
                 {overdueDays}d overdue
               </span>
+            )}
+
+            {!isComplete && (
+              <div className="ml-auto flex items-center gap-1">
+                {card.dueDate !== tomorrowIso && (
+                  <button
+                    type="button"
+                    onClick={handleMoveToTomorrow}
+                    title="Move to tomorrow"
+                    aria-label="Move to tomorrow"
+                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium text-text-muted bg-surface-hover/60 border border-border-subtle hover:text-accent hover:border-border-accent hover:bg-accent/10 transition-colors"
+                  >
+                    <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13 5l7 7-7 7M4 12h16" />
+                    </svg>
+                    Tomorrow
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={handlePickDate}
+                  title="Pick another date"
+                  aria-label="Pick another date"
+                  className="inline-flex items-center justify-center w-5 h-5 rounded text-text-muted hover:text-accent hover:bg-accent/10 transition-colors"
+                >
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                </button>
+                <input
+                  ref={dateInputRef}
+                  type="date"
+                  defaultValue={card.dueDate}
+                  min={today}
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={(e) => reschedule(e.target.value)}
+                  className="sr-only"
+                  tabIndex={-1}
+                  aria-hidden="true"
+                />
+              </div>
             )}
           </div>
         </div>
