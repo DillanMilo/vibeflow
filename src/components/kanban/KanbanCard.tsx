@@ -1,15 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { useSortable } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
 import { useApp } from '@/context/AppContext';
 import { cn } from '@/lib/utils';
 import type { KanbanCard as KanbanCardType, KanbanStatus, CardPriority, Id } from '@/types';
 
 interface KanbanCardProps {
   card: KanbanCardType;
-  overlay?: boolean;
   index?: number;
 }
 
@@ -47,7 +44,7 @@ function getDueDateInfo(dueDate: string): { label: string; isOverdue: boolean; i
   };
 }
 
-export function KanbanCard({ card, overlay, index = 0 }: KanbanCardProps) {
+export function KanbanCard({ card, index = 0 }: KanbanCardProps) {
   const { dispatch, todoCategories } = useApp();
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(card.title);
@@ -61,18 +58,7 @@ export function KanbanCard({ card, overlay, index = 0 }: KanbanCardProps) {
     ? todoCategories.find(c => c.id === card.categoryId)?.name
     : undefined;
 
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: card.id });
-
   const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
     animationDelay: `${index * 50}ms`,
   };
 
@@ -269,23 +255,16 @@ export function KanbanCard({ card, overlay, index = 0 }: KanbanCardProps) {
 
   return (
     <div
-      ref={setNodeRef}
-      id={overlay ? undefined : `card-${card.id}`}
+      id={`card-${card.id}`}
       style={style}
       className={cn(
         'group relative bg-surface border border-border rounded-lg md:rounded-xl p-3 md:p-4',
-        'md:cursor-grab md:active:cursor-grabbing',
         'transition-all duration-200',
         'hover:border-border-accent md:hover:shadow-md',
-        'md:active:scale-[0.98]',
         'scroll-mt-24',
-        isDragging && 'opacity-40 scale-[0.98]',
-        overlay && 'shadow-xl rotate-2 border-accent/50 bg-surface/95 backdrop-blur-sm',
-        !overlay && 'animate-fade-in',
+        'animate-fade-in',
         dueDateInfo?.isOverdue && 'border-danger/40'
       )}
-      {...attributes}
-      {...listeners}
     >
       {/* Subtle gradient accent on hover - hover-capable devices only */}
       <div className="hidden [@media(hover:hover)]:md:block absolute inset-0 rounded-xl bg-gradient-to-br from-accent/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
@@ -331,7 +310,6 @@ export function KanbanCard({ card, overlay, index = 0 }: KanbanCardProps) {
                   e.stopPropagation();
                   setIsExpanded(!isExpanded);
                 }}
-                onPointerDown={(e) => e.stopPropagation()}
                 className="flex items-center gap-1 mt-1 text-[11px] text-text-dim hover:text-accent transition-colors"
               >
                 <svg
@@ -489,7 +467,6 @@ export function KanbanCard({ card, overlay, index = 0 }: KanbanCardProps) {
                 e.stopPropagation();
                 handleMoveCard(prevStatus);
               }}
-              onPointerDown={(e) => e.stopPropagation()}
               className={cn(
                 'flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-all duration-200',
                 'text-text-dim hover:text-text-secondary hover:bg-surface-hover active:scale-95'
@@ -508,7 +485,6 @@ export function KanbanCard({ card, overlay, index = 0 }: KanbanCardProps) {
                 e.stopPropagation();
                 handleMoveCard(nextStatus);
               }}
-              onPointerDown={(e) => e.stopPropagation()}
               className={cn(
                 'flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-all duration-200',
                 nextStatus === 'complete'
@@ -525,17 +501,6 @@ export function KanbanCard({ card, overlay, index = 0 }: KanbanCardProps) {
         </div>
       )}
 
-      {/* Drag handle indicator - hover-capable devices only */}
-      <div className="hidden [@media(hover:hover)]:md:block absolute left-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-30 transition-opacity pointer-events-none">
-        <svg className="w-3 h-3 text-text-dim" viewBox="0 0 24 24" fill="currentColor">
-          <circle cx="9" cy="6" r="1.5" />
-          <circle cx="15" cy="6" r="1.5" />
-          <circle cx="9" cy="12" r="1.5" />
-          <circle cx="15" cy="12" r="1.5" />
-          <circle cx="9" cy="18" r="1.5" />
-          <circle cx="15" cy="18" r="1.5" />
-        </svg>
-      </div>
     </div>
   );
 }

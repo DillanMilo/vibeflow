@@ -1,8 +1,6 @@
 'use client';
 
 import { useState, useMemo, type KeyboardEvent } from 'react';
-import { useDroppable } from '@dnd-kit/core';
-import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useApp } from '@/context/AppContext';
 import { KanbanCard } from './KanbanCard';
 import { cn } from '@/lib/utils';
@@ -54,7 +52,6 @@ export function KanbanColumn({ id, title, cards, animationDelay = 0 }: KanbanCol
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
-  const { setNodeRef, isOver } = useDroppable({ id });
   const config = statusConfig[id];
 
   // Check if we have any categorized cards in this column
@@ -94,12 +91,6 @@ export function KanbanColumn({ id, title, cards, animationDelay = 0 }: KanbanCol
 
     return result;
   }, [cards, todoCategories, hasCategorizedCards]);
-
-  // Flat ordered list for SortableContext (grouped order)
-  const orderedCardIds = useMemo(() => {
-    if (!groups) return cards.map(c => c.id);
-    return groups.flatMap(g => g.cards.map(c => c.id));
-  }, [groups, cards]);
 
   const toggleGroup = (groupKey: string) => {
     setCollapsedGroups(prev => {
@@ -166,7 +157,6 @@ export function KanbanColumn({ id, title, cards, animationDelay = 0 }: KanbanCol
             <button
               type="button"
               onClick={() => toggleGroup(groupKey)}
-              onPointerDown={(e) => e.stopPropagation()}
               className={cn(
                 'flex items-center gap-1.5 w-full px-2 py-1.5 mb-1.5 rounded-lg transition-all',
                 'hover:bg-surface/50'
@@ -256,21 +246,17 @@ export function KanbanColumn({ id, title, cards, animationDelay = 0 }: KanbanCol
 
       {/* Column body */}
       <div
-        ref={setNodeRef}
         className={cn(
           'flex flex-col rounded-xl md:rounded-2xl transition-all duration-200 overflow-hidden',
           'bg-surface/30 border border-border-subtle',
-          isCollapsed ? 'min-h-0 p-0' : 'flex-1 p-2 md:p-3 min-h-[200px]',
-          isOver && !isCollapsed && 'bg-surface/60 border-border-accent shadow-lg'
+          isCollapsed ? 'min-h-0 p-0' : 'flex-1 p-2 md:p-3 min-h-[200px]'
         )}
       >
         {!isCollapsed && (
           <>
             {/* Scrollable cards container */}
             <div className="flex-1 overflow-y-auto -mx-1 px-1 min-h-0">
-              <SortableContext items={orderedCardIds} strategy={verticalListSortingStrategy}>
-                {groups ? renderGroupedCards(groups) : renderFlatCards()}
-              </SortableContext>
+              {groups ? renderGroupedCards(groups) : renderFlatCards()}
             </div>
 
             {/* Add card form */}
