@@ -287,8 +287,8 @@ export function KanbanCard({ card, overlay, index = 0 }: KanbanCardProps) {
       {...attributes}
       {...listeners}
     >
-      {/* Subtle gradient accent on hover - desktop only */}
-      <div className="hidden md:block absolute inset-0 rounded-xl bg-gradient-to-br from-accent/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+      {/* Subtle gradient accent on hover - hover-capable devices only */}
+      <div className="hidden [@media(hover:hover)]:md:block absolute inset-0 rounded-xl bg-gradient-to-br from-accent/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
 
       {/* Category banner */}
       {categoryName && (
@@ -386,11 +386,11 @@ export function KanbanCard({ card, overlay, index = 0 }: KanbanCardProps) {
           )}
         </div>
 
-        {/* Action buttons - always visible on mobile, hover on desktop */}
+        {/* Action buttons - always visible on touch devices, hover-reveal on hover-capable desktops only */}
         <div className={cn(
           'flex gap-1 transition-all duration-200',
-          'opacity-100 md:opacity-0 md:group-hover:opacity-100',
-          'translate-x-0 md:translate-x-1 md:group-hover:translate-x-0'
+          'opacity-100 [@media(hover:hover)]:md:opacity-0 [@media(hover:hover)]:md:group-hover:opacity-100',
+          'translate-x-0 [@media(hover:hover)]:md:translate-x-1 [@media(hover:hover)]:md:group-hover:translate-x-0'
         )}>
           <button
             type="button"
@@ -429,8 +429,8 @@ export function KanbanCard({ card, overlay, index = 0 }: KanbanCardProps) {
         </div>
       </div>
 
-      {/* Mobile move buttons */}
-      <div className="md:hidden flex items-center justify-between mt-3 pt-3 border-t border-border-subtle">
+      {/* Touch-device move buttons (mobile + tablets) */}
+      <div className="flex [@media(hover:hover)]:md:hidden items-center justify-between mt-3 pt-3 border-t border-border-subtle">
         <button
           type="button"
           onClick={(e) => {
@@ -476,10 +476,10 @@ export function KanbanCard({ card, overlay, index = 0 }: KanbanCardProps) {
         </button>
       </div>
 
-      {/* Desktop quick-move buttons */}
+      {/* Desktop quick-move buttons - hover-capable devices only (mobile/tablet use the move row above) */}
       {(canMoveLeft || canMoveRight) && (
         <div className={cn(
-          'hidden md:flex items-center gap-1.5 mt-3 pt-3 border-t border-border-subtle',
+          'hidden [@media(hover:hover)]:md:flex items-center gap-1.5 mt-3 pt-3 border-t border-border-subtle',
           'opacity-0 group-hover:opacity-100 transition-all duration-200'
         )}>
           {prevStatus && (
@@ -525,8 +525,8 @@ export function KanbanCard({ card, overlay, index = 0 }: KanbanCardProps) {
         </div>
       )}
 
-      {/* Drag handle indicator - desktop only */}
-      <div className="hidden md:block absolute left-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-30 transition-opacity pointer-events-none">
+      {/* Drag handle indicator - hover-capable devices only */}
+      <div className="hidden [@media(hover:hover)]:md:block absolute left-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-30 transition-opacity pointer-events-none">
         <svg className="w-3 h-3 text-text-dim" viewBox="0 0 24 24" fill="currentColor">
           <circle cx="9" cy="6" r="1.5" />
           <circle cx="15" cy="6" r="1.5" />

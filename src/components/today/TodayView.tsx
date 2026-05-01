@@ -287,28 +287,29 @@ function TodayCard({
                     Tomorrow
                   </button>
                 )}
-                <button
-                  type="button"
-                  onClick={handlePickDate}
-                  title="Pick another date"
-                  aria-label="Pick another date"
-                  className="inline-flex items-center justify-center w-5 h-5 rounded text-text-muted hover:text-accent hover:bg-accent/10 transition-colors"
-                >
-                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                </button>
-                <input
-                  ref={dateInputRef}
-                  type="date"
-                  defaultValue={card.dueDate}
-                  min={today}
-                  onClick={(e) => e.stopPropagation()}
-                  onChange={(e) => reschedule(e.target.value)}
-                  className="sr-only"
-                  tabIndex={-1}
-                  aria-hidden="true"
-                />
+                <span className="relative inline-flex">
+                  <button
+                    type="button"
+                    onClick={handlePickDate}
+                    title="Pick another date"
+                    aria-label="Pick another date"
+                    className="inline-flex items-center justify-center w-5 h-5 rounded text-text-muted hover:text-accent hover:bg-accent/10 transition-colors"
+                  >
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </button>
+                  <input
+                    ref={dateInputRef}
+                    type="date"
+                    defaultValue={card.dueDate}
+                    min={today}
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={(e) => reschedule(e.target.value)}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    aria-label="Pick another date"
+                  />
+                </span>
               </div>
             )}
           </div>

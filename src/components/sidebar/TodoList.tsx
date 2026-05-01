@@ -58,10 +58,10 @@ function TodoItemRow({
         {todo.text}
       </span>
 
-      {/* Action buttons - always visible on mobile */}
+      {/* Action buttons - always visible on touch devices, hover-reveal on hover-capable desktops only */}
       <div className={cn(
         'flex gap-1 transition-all duration-200',
-        'opacity-100 md:opacity-0 md:group-hover:opacity-100'
+        'opacity-100 [@media(hover:hover)]:md:opacity-0 [@media(hover:hover)]:md:group-hover:opacity-100'
       )}>
         <button
           onClick={onPromote}
