@@ -530,7 +530,7 @@ export function TodayView({ onNavigateToCard }: TodayViewProps) {
   const heroLabel = relativeLabel(selectedDate, today);
 
   return (
-    <div className="h-full overflow-y-auto">
+    <div className="h-full overflow-y-auto overflow-x-hidden overscroll-x-none">
       <div className="max-w-3xl mx-auto px-4 md:px-8 py-6 md:py-10 pb-12">
         {/* Hero header */}
         <div className="mb-5 md:mb-8 animate-fade-in">
