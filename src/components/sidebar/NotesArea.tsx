@@ -61,19 +61,20 @@ export function NotesArea() {
       </div>
 
       {/* Notes textarea */}
-      <div className="relative flex-1 min-h-[300px] md:min-h-0">
+      <div className="relative flex-1 min-h-0">
         <textarea
           value={localNotes}
           onChange={(e) => handleChange(e.target.value)}
           placeholder="Jot down ideas, notes, or anything on your mind..."
           className={cn(
-            'w-full h-full min-h-[280px] md:min-h-0 bg-surface border border-border rounded-xl p-4',
+            'w-full h-full bg-surface border border-border rounded-xl p-4',
             'text-base md:text-sm text-text-primary placeholder:text-text-dim',
-            'resize-none focus:outline-none',
+            'resize-none focus:outline-none overflow-y-auto',
             'focus:border-border-accent focus:ring-1 focus:ring-accent/20',
             'transition-all duration-200',
             'leading-relaxed'
           )}
+          style={{ WebkitOverflowScrolling: 'touch' }}
         />
 
         {/* Character count hint */}

@@ -421,7 +421,7 @@ function WeekStrip({
   }, [today]);
 
   return (
-    <div className="flex items-stretch gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
+    <div className="flex items-stretch gap-1 sm:gap-1.5 pb-1">
       {days.map(({ iso, weekday, dayNum }) => {
         const isSelected = iso === selectedDate;
         const isToday = iso === today;
@@ -432,7 +432,7 @@ function WeekStrip({
             type="button"
             onClick={() => onSelect(iso)}
             className={cn(
-              'flex-1 min-w-[56px] flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-all duration-200 relative',
+              'flex-1 min-w-0 flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-all duration-200 relative',
               'border',
               isSelected
                 ? 'bg-accent text-background border-accent shadow-sm'
