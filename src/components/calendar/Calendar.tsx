@@ -33,10 +33,18 @@ function isToday(year: number, month: number, day: number): boolean {
 interface EventFormProps {
   date: string;
   event?: CalendarEvent;
+  occurrenceDate?: string; // the specific occurrence being viewed (for skip)
   onClose: () => void;
 }
 
-function EventForm({ date, event, onClose }: EventFormProps) {
+const RECURRENCE_OPTIONS: { value: RecurrenceType; label: string }[] = [
+  { value: 'none', label: "Doesn't repeat" },
+  { value: 'daily', label: 'Daily' },
+  { value: 'weekly', label: 'Weekly' },
+  { value: 'monthly', label: 'Monthly' },
+];
+
+function EventForm({ date, event, occurrenceDate, onClose }: EventFormProps) {
   const { dispatch } = useApp();
   const [title, setTitle] = useState(event?.title || '');
   const [description, setDescription] = useState(event?.description || '');
@@ -59,7 +67,7 @@ function EventForm({ date, event, onClose }: EventFormProps) {
             description: description.trim() || undefined,
             // For recurring events, preserve the original anchor date so the
             // whole series isn't shifted when editing from a future occurrence.
-            date: event.recurrence === 'weekly' ? event.date : date,
+            date: event.recurrence && event.recurrence !== 'none' ? event.date : date,
             time: time || undefined,
             endTime: endTime || undefined,
             color,
@@ -84,7 +92,39 @@ function EventForm({ date, event, onClose }: EventFormProps) {
     onClose();
   };
 
-  const weekday = new Date(date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' });
+  const anchorWeekday = new Date(
+    (event?.date || date) + 'T12:00:00'
+  ).toLocaleDateString('en-US', { weekday: 'long' });
+  const anchorDayOfMonth = new Date(
+    (event?.date || date) + 'T12:00:00'
+  ).getDate();
+
+  const recurrenceHint =
+    recurrence === 'weekly'
+      ? `Every ${anchorWeekday}`
+      : recurrence === 'monthly'
+      ? `On day ${anchorDayOfMonth} of each month`
+      : recurrence === 'daily'
+      ? 'Every day'
+      : null;
+
+  const canSkip =
+    !!event &&
+    !!occurrenceDate &&
+    event.recurrence &&
+    event.recurrence !== 'none';
+
+  const handleSkipOccurrence = () => {
+    if (!event || !occurrenceDate) return;
+    const exceptions = Array.from(
+      new Set([...(event.exceptions || []), occurrenceDate])
+    );
+    dispatch({
+      type: 'UPDATE_EVENT',
+      payload: { id: event.id, updates: { exceptions } },
+    });
+    onClose();
+  };
 
   const displayDate = new Date(date + 'T12:00:00');
 
@@ -167,32 +207,26 @@ function EventForm({ date, event, onClose }: EventFormProps) {
 
           <div>
             <label className="text-xs text-text-muted mb-2 block">Repeats</label>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setRecurrence('none')}
-                className={cn(
-                  'flex-1 px-3 py-2 text-xs font-medium rounded-lg border transition-all',
-                  recurrence === 'none'
-                    ? 'bg-accent/15 border-border-accent text-text-primary'
-                    : 'bg-background border-border text-text-muted hover:text-text-primary'
-                )}
-              >
-                Doesn&apos;t repeat
-              </button>
-              <button
-                type="button"
-                onClick={() => setRecurrence('weekly')}
-                className={cn(
-                  'flex-1 px-3 py-2 text-xs font-medium rounded-lg border transition-all',
-                  recurrence === 'weekly'
-                    ? 'bg-accent/15 border-border-accent text-text-primary'
-                    : 'bg-background border-border text-text-muted hover:text-text-primary'
-                )}
-              >
-                Weekly on {weekday}
-              </button>
+            <div className="grid grid-cols-4 gap-1.5">
+              {RECURRENCE_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setRecurrence(opt.value)}
+                  className={cn(
+                    'px-2 py-2 text-xs font-medium rounded-lg border transition-all',
+                    recurrence === opt.value
+                      ? 'bg-accent/15 border-border-accent text-text-primary'
+                      : 'bg-background border-border text-text-muted hover:text-text-primary'
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
             </div>
+            {recurrenceHint && (
+              <p className="text-[11px] text-text-dim mt-1.5">{recurrenceHint}</p>
+            )}
           </div>
 
           <div>
@@ -214,7 +248,7 @@ function EventForm({ date, event, onClose }: EventFormProps) {
           </div>
         </div>
 
-        <div className="px-5 py-4 border-t border-border-subtle flex gap-2 justify-end">
+        <div className="px-5 py-4 border-t border-border-subtle flex gap-2 justify-end flex-wrap">
           {event && (
             <button
               type="button"
@@ -224,7 +258,17 @@ function EventForm({ date, event, onClose }: EventFormProps) {
               }}
               className="px-4 py-2 text-sm font-medium text-danger hover:bg-danger-subtle rounded-lg transition-colors mr-auto"
             >
-              Delete
+              Delete{event.recurrence && event.recurrence !== 'none' ? ' series' : ''}
+            </button>
+          )}
+          {canSkip && (
+            <button
+              type="button"
+              onClick={handleSkipOccurrence}
+              className="px-4 py-2 text-sm font-medium text-text-muted hover:text-text-primary hover:bg-surface-hover rounded-lg transition-colors"
+              title="Hide this single date from the recurring series"
+            >
+              Skip this day
             </button>
           )}
           <button
@@ -263,37 +307,57 @@ export function Calendar({ view = 'full' }: CalendarProps) {
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | undefined>(undefined);
+  const [editingOccurrenceDate, setEditingOccurrenceDate] = useState<string | undefined>(undefined);
   const [showForm, setShowForm] = useState(false);
   const [showGcalSetupInfo, setShowGcalSetupInfo] = useState(false);
 
-  // Build a map of date -> events. Non-recurring events are stored by their
-  // own date; weekly recurring events are looked up per-cell below.
+  // Build a map of date -> non-recurring events. Recurring events are
+  // expanded per-cell below.
   const eventsByDate = useMemo(() => {
     const map: Record<string, CalendarEvent[]> = {};
     for (const event of events) {
-      if (event.recurrence === 'weekly') continue;
+      if (event.recurrence && event.recurrence !== 'none') continue;
       if (!map[event.date]) map[event.date] = [];
       map[event.date].push(event);
     }
     return map;
   }, [events]);
 
-  const weeklyEvents = useMemo(
-    () => events.filter((e) => e.recurrence === 'weekly'),
+  const recurringEvents = useMemo(
+    () => events.filter((e) => e.recurrence && e.recurrence !== 'none'),
     [events]
   );
 
-  // Returns vibeflow events for a given date, including expanded weekly recurrences.
+  // Returns true if a recurring event occurs on the given date (ignoring exceptions).
+  const occursOn = (ev: CalendarEvent, dateStr: string): boolean => {
+    const anchor = new Date(ev.date + 'T12:00:00');
+    const target = new Date(dateStr + 'T12:00:00');
+    if (target < anchor) return false;
+    switch (ev.recurrence) {
+      case 'daily':
+        return true;
+      case 'weekly': {
+        const diffDays = Math.round(
+          (target.getTime() - anchor.getTime()) / 86_400_000
+        );
+        return diffDays % 7 === 0;
+      }
+      case 'monthly':
+        // Same calendar day-of-month; months with no such day skip naturally.
+        return anchor.getDate() === target.getDate();
+      default:
+        return false;
+    }
+  };
+
+  // Returns vibeflow events for a given date, including expanded recurrences.
   const getEventsForDate = (dateStr: string): CalendarEvent[] => {
     const base = eventsByDate[dateStr] || [];
-    if (weeklyEvents.length === 0) return base;
-    const target = new Date(dateStr + 'T12:00:00').getTime();
+    if (recurringEvents.length === 0) return base;
     const recurring: CalendarEvent[] = [];
-    for (const ev of weeklyEvents) {
-      const start = new Date(ev.date + 'T12:00:00').getTime();
-      if (start > target) continue;
-      const diffDays = Math.round((target - start) / 86_400_000);
-      if (diffDays % 7 === 0) recurring.push(ev);
+    for (const ev of recurringEvents) {
+      if (ev.exceptions?.includes(dateStr)) continue;
+      if (occursOn(ev, dateStr)) recurring.push(ev);
     }
     return [...base, ...recurring];
   };
@@ -361,8 +425,9 @@ export function Calendar({ view = 'full' }: CalendarProps) {
     setShowForm(true);
   };
 
-  const handleEditEvent = (event: CalendarEvent) => {
+  const handleEditEvent = (event: CalendarEvent, occurrenceDate?: string) => {
     setEditingEvent(event);
+    setEditingOccurrenceDate(occurrenceDate);
     setShowForm(true);
   };
 
@@ -657,7 +722,9 @@ export function Calendar({ view = 'full' }: CalendarProps) {
                     style={{ backgroundColor: ev.color + '30', color: ev.color }}
                   >
                     {ev.time && <span className="opacity-70">{ev.time} </span>}
-                    {ev.recurrence === 'weekly' && <span className="opacity-70">↻ </span>}
+                    {ev.recurrence && ev.recurrence !== 'none' && (
+                      <span className="opacity-70">↻ </span>
+                    )}
                     {ev.title}
                   </div>
                 ))}
@@ -725,7 +792,7 @@ export function Calendar({ view = 'full' }: CalendarProps) {
                   <button
                     key={event.id}
                     type="button"
-                    onClick={() => handleEditEvent(event)}
+                    onClick={() => handleEditEvent(event, selectedDate ?? undefined)}
                     className={cn(
                       'w-full text-left p-3 rounded-xl border transition-all',
                       'hover:bg-surface-hover active:scale-[0.98]',
@@ -743,13 +810,13 @@ export function Calendar({ view = 'full' }: CalendarProps) {
                       <span className="text-sm font-medium text-text-primary truncate">
                         {event.title}
                       </span>
-                      {event.recurrence === 'weekly' && (
+                      {event.recurrence && event.recurrence !== 'none' && (
                         <span
-                          className="text-[10px] px-1.5 py-0.5 rounded font-medium flex-shrink-0"
+                          className="text-[10px] px-1.5 py-0.5 rounded font-medium flex-shrink-0 capitalize"
                           style={{ backgroundColor: event.color + '25', color: event.color }}
-                          title="Repeats weekly"
+                          title={`Repeats ${event.recurrence}`}
                         >
-                          ↻ Weekly
+                          ↻ {event.recurrence}
                         </span>
                       )}
                       {event.time && (
@@ -806,9 +873,11 @@ export function Calendar({ view = 'full' }: CalendarProps) {
         <EventForm
           date={editingEvent ? editingEvent.date : selectedDate!}
           event={editingEvent}
+          occurrenceDate={editingOccurrenceDate}
           onClose={() => {
             setShowForm(false);
             setEditingEvent(undefined);
+            setEditingOccurrenceDate(undefined);
           }}
         />
       )}

@@ -35,7 +35,7 @@ export interface Column {
 // Calendar event types
 export type CalendarEventColor = '#e5a54b' | '#6ec47f' | '#5b9bd5' | '#d67bff' | '#ff7b7b' | '#7bdfff' | '#ffb86b' | '#ff7baf';
 
-export type RecurrenceType = 'none' | 'weekly';
+export type RecurrenceType = 'none' | 'daily' | 'weekly' | 'monthly';
 
 export interface CalendarEvent {
   id: Id;
@@ -46,6 +46,7 @@ export interface CalendarEvent {
   endTime?: string; // HH:MM format (optional)
   color: CalendarEventColor;
   recurrence?: RecurrenceType; // optional for backward compatibility; absent = 'none'
+  exceptions?: string[]; // ISO dates skipped from a recurring series
   createdAt: number;
 }
 
