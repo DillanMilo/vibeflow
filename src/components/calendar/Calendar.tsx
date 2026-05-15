@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react';
 import { useApp } from '@/context/AppContext';
 import { useGoogleCalendar, type GoogleCalendarEvent } from '@/hooks/useGoogleCalendar';
 import { cn } from '@/lib/utils';
-import type { CalendarEvent, CalendarEventColor } from '@/types';
+import type { CalendarEvent, CalendarEventColor, RecurrenceType } from '@/types';
 import { PROJECT_COLORS } from '@/types';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -43,6 +43,7 @@ function EventForm({ date, event, onClose }: EventFormProps) {
   const [time, setTime] = useState(event?.time || '');
   const [endTime, setEndTime] = useState(event?.endTime || '');
   const [color, setColor] = useState<CalendarEventColor>(event?.color || '#e5a54b');
+  const [recurrence, setRecurrence] = useState<RecurrenceType>(event?.recurrence || 'none');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,10 +57,13 @@ function EventForm({ date, event, onClose }: EventFormProps) {
           updates: {
             title: title.trim(),
             description: description.trim() || undefined,
-            date,
+            // For recurring events, preserve the original anchor date so the
+            // whole series isn't shifted when editing from a future occurrence.
+            date: event.recurrence === 'weekly' ? event.date : date,
             time: time || undefined,
             endTime: endTime || undefined,
             color,
+            recurrence,
           },
         },
       });
@@ -73,11 +77,14 @@ function EventForm({ date, event, onClose }: EventFormProps) {
           time: time || undefined,
           endTime: endTime || undefined,
           color,
+          recurrence,
         },
       });
     }
     onClose();
   };
+
+  const weekday = new Date(date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' });
 
   const displayDate = new Date(date + 'T12:00:00');
 
@@ -159,6 +166,36 @@ function EventForm({ date, event, onClose }: EventFormProps) {
           </div>
 
           <div>
+            <label className="text-xs text-text-muted mb-2 block">Repeats</label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setRecurrence('none')}
+                className={cn(
+                  'flex-1 px-3 py-2 text-xs font-medium rounded-lg border transition-all',
+                  recurrence === 'none'
+                    ? 'bg-accent/15 border-border-accent text-text-primary'
+                    : 'bg-background border-border text-text-muted hover:text-text-primary'
+                )}
+              >
+                Doesn&apos;t repeat
+              </button>
+              <button
+                type="button"
+                onClick={() => setRecurrence('weekly')}
+                className={cn(
+                  'flex-1 px-3 py-2 text-xs font-medium rounded-lg border transition-all',
+                  recurrence === 'weekly'
+                    ? 'bg-accent/15 border-border-accent text-text-primary'
+                    : 'bg-background border-border text-text-muted hover:text-text-primary'
+                )}
+              >
+                Weekly on {weekday}
+              </button>
+            </div>
+          </div>
+
+          <div>
             <label className="text-xs text-text-muted mb-2 block">Color</label>
             <div className="flex gap-2">
               {(PROJECT_COLORS as CalendarEventColor[]).map((c) => (
@@ -229,15 +266,37 @@ export function Calendar({ view = 'full' }: CalendarProps) {
   const [showForm, setShowForm] = useState(false);
   const [showGcalSetupInfo, setShowGcalSetupInfo] = useState(false);
 
-  // Build a map of date -> events
+  // Build a map of date -> events. Non-recurring events are stored by their
+  // own date; weekly recurring events are looked up per-cell below.
   const eventsByDate = useMemo(() => {
     const map: Record<string, CalendarEvent[]> = {};
     for (const event of events) {
+      if (event.recurrence === 'weekly') continue;
       if (!map[event.date]) map[event.date] = [];
       map[event.date].push(event);
     }
     return map;
   }, [events]);
+
+  const weeklyEvents = useMemo(
+    () => events.filter((e) => e.recurrence === 'weekly'),
+    [events]
+  );
+
+  // Returns vibeflow events for a given date, including expanded weekly recurrences.
+  const getEventsForDate = (dateStr: string): CalendarEvent[] => {
+    const base = eventsByDate[dateStr] || [];
+    if (weeklyEvents.length === 0) return base;
+    const target = new Date(dateStr + 'T12:00:00').getTime();
+    const recurring: CalendarEvent[] = [];
+    for (const ev of weeklyEvents) {
+      const start = new Date(ev.date + 'T12:00:00').getTime();
+      if (start > target) continue;
+      const diffDays = Math.round((target - start) / 86_400_000);
+      if (diffDays % 7 === 0) recurring.push(ev);
+    }
+    return [...base, ...recurring];
+  };
 
   // Build a map of date -> Google Calendar events
   const gcalEventsByDate = useMemo(() => {
@@ -304,7 +363,6 @@ export function Calendar({ view = 'full' }: CalendarProps) {
 
   const handleEditEvent = (event: CalendarEvent) => {
     setEditingEvent(event);
-    setSelectedDate(event.date);
     setShowForm(true);
   };
 
@@ -339,7 +397,7 @@ export function Calendar({ view = 'full' }: CalendarProps) {
   }
 
   // Get selected date events and due cards
-  const selectedEvents = selectedDate ? (eventsByDate[selectedDate] || []) : [];
+  const selectedEvents = selectedDate ? getEventsForDate(selectedDate) : [];
   const selectedGcalEvents = selectedDate ? (gcalEventsByDate[selectedDate] || []) : [];
   const selectedDueCards = selectedDate ? (cardsDueByDate[selectedDate] || []) : [];
 
@@ -529,7 +587,7 @@ export function Calendar({ view = 'full' }: CalendarProps) {
       {/* Calendar grid */}
       <div className="grid grid-cols-7 gap-px bg-border-subtle/30 rounded-xl overflow-hidden border border-border-subtle">
         {calendarDays.map((cell, i) => {
-          const dayEvents = eventsByDate[cell.dateStr] || [];
+          const dayEvents = getEventsForDate(cell.dateStr);
           const dayGcalEvents = gcalEventsByDate[cell.dateStr] || [];
           const dueCards = cardsDueByDate[cell.dateStr] || [];
           const isTodayCell = cell.currentMonth && isToday(currentYear, currentMonth, cell.day);
@@ -599,6 +657,7 @@ export function Calendar({ view = 'full' }: CalendarProps) {
                     style={{ backgroundColor: ev.color + '30', color: ev.color }}
                   >
                     {ev.time && <span className="opacity-70">{ev.time} </span>}
+                    {ev.recurrence === 'weekly' && <span className="opacity-70">↻ </span>}
                     {ev.title}
                   </div>
                 ))}
@@ -684,6 +743,15 @@ export function Calendar({ view = 'full' }: CalendarProps) {
                       <span className="text-sm font-medium text-text-primary truncate">
                         {event.title}
                       </span>
+                      {event.recurrence === 'weekly' && (
+                        <span
+                          className="text-[10px] px-1.5 py-0.5 rounded font-medium flex-shrink-0"
+                          style={{ backgroundColor: event.color + '25', color: event.color }}
+                          title="Repeats weekly"
+                        >
+                          ↻ Weekly
+                        </span>
+                      )}
                       {event.time && (
                         <span className="text-xs text-text-muted ml-auto flex-shrink-0">
                           {event.time}
@@ -734,9 +802,9 @@ export function Calendar({ view = 'full' }: CalendarProps) {
       )}
 
       {/* Event form modal */}
-      {showForm && selectedDate && (
+      {showForm && (selectedDate || editingEvent) && (
         <EventForm
-          date={selectedDate}
+          date={editingEvent ? editingEvent.date : selectedDate!}
           event={editingEvent}
           onClose={() => {
             setShowForm(false);

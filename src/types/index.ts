@@ -35,14 +35,17 @@ export interface Column {
 // Calendar event types
 export type CalendarEventColor = '#e5a54b' | '#6ec47f' | '#5b9bd5' | '#d67bff' | '#ff7b7b' | '#7bdfff' | '#ffb86b' | '#ff7baf';
 
+export type RecurrenceType = 'none' | 'weekly';
+
 export interface CalendarEvent {
   id: Id;
   title: string;
   description?: string;
-  date: string; // ISO date string YYYY-MM-DD
+  date: string; // ISO date string YYYY-MM-DD (the start/anchor date for recurring events)
   time?: string; // HH:MM format (optional, for all-day events)
   endTime?: string; // HH:MM format (optional)
   color: CalendarEventColor;
+  recurrence?: RecurrenceType; // optional for backward compatibility; absent = 'none'
   createdAt: number;
 }
 
