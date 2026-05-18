@@ -13,32 +13,6 @@ import { PROJECT_COLORS } from '@/types';
 type MobileView = 'today' | 'board' | 'tasks' | 'calendar' | 'notes';
 type DesktopView = 'today' | 'board';
 
-const FLOW_OS_URL = 'https://flow-os-flax.vercel.app';
-
-function FlowOsBridge() {
-  return (
-    <div className="flex-shrink-0 border-b border-border-subtle bg-background/95 px-3 py-2 backdrop-blur-md md:px-6">
-      <div className="flex items-center justify-between gap-3">
-        <a
-          href={FLOW_OS_URL}
-          className="rounded-lg border border-border-subtle bg-surface px-3 py-2 text-[11px] font-medium uppercase tracking-[0.14em] text-text-secondary transition hover:border-accent/40 hover:text-text-primary"
-        >
-          Back to Flow OS
-        </a>
-        <div className="hidden min-w-0 flex-1 text-center text-[11px] uppercase tracking-[0.16em] text-text-dim sm:block">
-          Vibe Flow remains the live task app
-        </div>
-        <a
-          href={`${FLOW_OS_URL}/agents`}
-          className="rounded-lg border border-accent/30 bg-accent/10 px-3 py-2 text-[11px] font-medium uppercase tracking-[0.14em] text-accent transition hover:bg-accent/15"
-        >
-          Ask Alfred
-        </a>
-      </div>
-    </div>
-  );
-}
-
 function LoadingSkeleton() {
   return (
     <div className="flex flex-col h-dvh bg-background">
@@ -817,7 +791,6 @@ export default function Home() {
         desktopView={desktopView}
         onDesktopViewChange={setDesktopView}
       />
-      <FlowOsBridge />
       {desktopView === 'board' && <ProgressBar />}
 
       {/* Desktop layout */}

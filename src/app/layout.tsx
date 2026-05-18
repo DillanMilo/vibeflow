@@ -47,6 +47,32 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
+const FLOW_OS_URL = "https://flow-os-flax.vercel.app";
+
+function FlowOsBridge() {
+  return (
+    <div className="flex-shrink-0 border-b border-border-subtle bg-background/95 px-3 py-2 backdrop-blur-md md:px-6">
+      <div className="flex items-center justify-between gap-3">
+        <a
+          href={FLOW_OS_URL}
+          className="rounded-lg border border-border-subtle bg-surface px-3 py-2 text-[11px] font-medium uppercase tracking-[0.14em] text-text-secondary transition hover:border-accent/40 hover:text-text-primary"
+        >
+          Back to Flow OS
+        </a>
+        <div className="hidden min-w-0 flex-1 text-center text-[11px] uppercase tracking-[0.16em] text-text-dim sm:block">
+          Vibe Flow remains the live task app
+        </div>
+        <a
+          href={`${FLOW_OS_URL}/agents`}
+          className="rounded-lg border border-accent/30 bg-accent/10 px-3 py-2 text-[11px] font-medium uppercase tracking-[0.14em] text-accent transition hover:bg-accent/15"
+        >
+          Ask Alfred
+        </a>
+      </div>
+    </div>
+  );
+}
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -58,7 +84,12 @@ export default function RootLayout({
         className={`${dmSans.variable} ${instrumentSerif.variable} ${jetbrainsMono.variable} antialiased`}
       >
         <AuthProvider>
-          <AppProvider>{children}</AppProvider>
+          <AppProvider>
+            <div className="flex min-h-dvh flex-col">
+              <FlowOsBridge />
+              <div className="min-h-0 flex-1">{children}</div>
+            </div>
+          </AppProvider>
         </AuthProvider>
       </body>
     </html>
