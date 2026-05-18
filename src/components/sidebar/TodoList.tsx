@@ -3,7 +3,7 @@
 import { useState, type KeyboardEvent } from 'react';
 import { useApp } from '@/context/AppContext';
 import { cn } from '@/lib/utils';
-import type { TodoItem, TodoCategory, Id } from '@/types';
+import type { TodoItem, TodoCategory } from '@/types';
 
 function TodoItemRow({
   todo,

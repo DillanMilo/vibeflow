@@ -299,7 +299,7 @@ interface CalendarProps {
   view?: 'full' | 'compact';
 }
 
-export function Calendar({ view = 'full' }: CalendarProps) {
+export function Calendar({}: CalendarProps) {
   const { events, cards } = useApp();
   const gcal = useGoogleCalendar();
   const today = new Date();

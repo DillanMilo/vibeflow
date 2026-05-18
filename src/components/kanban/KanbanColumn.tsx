@@ -149,7 +149,6 @@ export function KanbanColumn({ id, title, cards, animationDelay = 0 }: KanbanCol
       {cardGroups.map((group) => {
         const groupKey = group.category?.id || '__uncategorized';
         const isGroupCollapsed = collapsedGroups.has(groupKey);
-        const completedInGroup = group.cards.filter(c => c.status === 'complete').length;
 
         return (
           <div key={groupKey}>

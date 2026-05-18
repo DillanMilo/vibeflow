@@ -23,6 +23,16 @@ interface GoogleCalendarState {
   calendarName: string | null;
 }
 
+interface GoogleTokenResponse {
+  access_token: string;
+  expires_in: number;
+  error?: string;
+}
+
+interface GoogleTokenClient {
+  requestAccessToken: (config: { prompt: string }) => void;
+}
+
 const STORAGE_KEY = 'vibeflow-gcal-token';
 
 export function useGoogleCalendar() {
@@ -34,66 +44,12 @@ export function useGoogleCalendar() {
     calendarName: null,
   });
 
-  const tokenClientRef = useRef<google.accounts.oauth2.TokenClient | null>(null);
+  const tokenClientRef = useRef<GoogleTokenClient | null>(null);
   const accessTokenRef = useRef<string | null>(null);
   const gapiLoadedRef = useRef(false);
   const gisLoadedRef = useRef(false);
 
   const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-
-  // Load GAPI client
-  useEffect(() => {
-    if (!clientId) return;
-
-    // Load Google API script
-    const gapiScript = document.createElement('script');
-    gapiScript.src = 'https://apis.google.com/js/api.js';
-    gapiScript.async = true;
-    gapiScript.defer = true;
-    gapiScript.onload = () => {
-      window.gapi.load('client', async () => {
-        await window.gapi.client.init({
-          discoveryDocs: [DISCOVERY_DOC],
-        });
-        gapiLoadedRef.current = true;
-
-        // Check for stored token
-        const storedToken = localStorage.getItem(STORAGE_KEY);
-        if (storedToken) {
-          try {
-            const parsed = JSON.parse(storedToken);
-            if (parsed.expiry > Date.now()) {
-              window.gapi.client.setToken({ access_token: parsed.token });
-              accessTokenRef.current = parsed.token;
-              setState(s => ({ ...s, isConnected: true }));
-              fetchEvents(parsed.token);
-            } else {
-              localStorage.removeItem(STORAGE_KEY);
-            }
-          } catch {
-            localStorage.removeItem(STORAGE_KEY);
-          }
-        }
-      });
-    };
-    document.head.appendChild(gapiScript);
-
-    // Load Google Identity Services script
-    const gisScript = document.createElement('script');
-    gisScript.src = 'https://accounts.google.com/gsi/client';
-    gisScript.async = true;
-    gisScript.defer = true;
-    gisScript.onload = () => {
-      gisLoadedRef.current = true;
-    };
-    document.head.appendChild(gisScript);
-
-    return () => {
-      // Cleanup scripts if component unmounts
-      if (gapiScript.parentNode) gapiScript.parentNode.removeChild(gapiScript);
-      if (gisScript.parentNode) gisScript.parentNode.removeChild(gisScript);
-    };
-  }, [clientId]);
 
   const fetchEvents = useCallback(async (token?: string) => {
     const accessToken = token || accessTokenRef.current;
@@ -156,6 +112,60 @@ export function useGoogleCalendar() {
     }
   }, []);
 
+  // Load GAPI client
+  useEffect(() => {
+    if (!clientId) return;
+
+    // Load Google API script
+    const gapiScript = document.createElement('script');
+    gapiScript.src = 'https://apis.google.com/js/api.js';
+    gapiScript.async = true;
+    gapiScript.defer = true;
+    gapiScript.onload = () => {
+      window.gapi.load('client', async () => {
+        await window.gapi.client.init({
+          discoveryDocs: [DISCOVERY_DOC],
+        });
+        gapiLoadedRef.current = true;
+
+        // Check for stored token
+        const storedToken = localStorage.getItem(STORAGE_KEY);
+        if (storedToken) {
+          try {
+            const parsed = JSON.parse(storedToken);
+            if (parsed.expiry > Date.now()) {
+              window.gapi.client.setToken({ access_token: parsed.token });
+              accessTokenRef.current = parsed.token;
+              setState(s => ({ ...s, isConnected: true }));
+              fetchEvents(parsed.token);
+            } else {
+              localStorage.removeItem(STORAGE_KEY);
+            }
+          } catch {
+            localStorage.removeItem(STORAGE_KEY);
+          }
+        }
+      });
+    };
+    document.head.appendChild(gapiScript);
+
+    // Load Google Identity Services script
+    const gisScript = document.createElement('script');
+    gisScript.src = 'https://accounts.google.com/gsi/client';
+    gisScript.async = true;
+    gisScript.defer = true;
+    gisScript.onload = () => {
+      gisLoadedRef.current = true;
+    };
+    document.head.appendChild(gisScript);
+
+    return () => {
+      // Cleanup scripts if component unmounts
+      if (gapiScript.parentNode) gapiScript.parentNode.removeChild(gapiScript);
+      if (gisScript.parentNode) gisScript.parentNode.removeChild(gisScript);
+    };
+  }, [clientId, fetchEvents]);
+
   const connect = useCallback(() => {
     if (!clientId || !gisLoadedRef.current || !gapiLoadedRef.current) {
       setState(s => ({ ...s, error: 'Google API not loaded yet. Please try again.' }));
@@ -167,7 +177,7 @@ export function useGoogleCalendar() {
         client_id: clientId,
         scope: SCOPES,
         ux_mode: 'popup',
-        callback: (response: google.accounts.oauth2.TokenResponse) => {
+        callback: (response: GoogleTokenResponse) => {
           if (response.error) {
             setState(s => ({ ...s, error: 'Failed to connect. Please try again.' }));
             return;
@@ -291,25 +301,14 @@ declare global {
           initTokenClient: (config: {
             client_id: string;
             scope: string;
-            callback: (response: google.accounts.oauth2.TokenResponse) => void;
+            callback: (response: GoogleTokenResponse) => void;
             error_callback?: (error: { type: string; message?: string }) => void;
             ux_mode?: 'popup' | 'redirect';
             redirect_uri?: string;
-          }) => google.accounts.oauth2.TokenClient;
+          }) => GoogleTokenClient;
           revoke: (token: string, callback: () => void) => void;
         };
       };
     };
-  }
-
-  namespace google.accounts.oauth2 {
-    interface TokenResponse {
-      access_token: string;
-      expires_in: number;
-      error?: string;
-    }
-    interface TokenClient {
-      requestAccessToken: (config: { prompt: string }) => void;
-    }
   }
 }
