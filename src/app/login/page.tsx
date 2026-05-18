@@ -176,6 +176,13 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    if (window.self !== window.top) {
+      window.localStorage.setItem("flowos-return-enabled", "1");
+      window.open(`${window.location.origin}/login?flowosReturn=1`, "_top");
+      return;
+    }
+
     setIsLoading(true);
 
     const { error } = await signIn(email, password);
@@ -197,7 +204,10 @@ export default function LoginPage() {
       {/* Right side - Login form */}
       <div className="flex-1 lg:max-w-xl flex flex-col justify-center px-6 py-12 lg:px-16">
         {/* Mobile logo */}
-        <div className="lg:hidden flex items-center justify-center gap-3 mb-10 animate-fade-in">
+        <Link
+          href="https://flow-os-flax.vercel.app"
+          className="lg:hidden flex items-center justify-center gap-3 mb-10 animate-fade-in"
+        >
           <div className="relative">
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-accent to-accent-hover flex items-center justify-center">
               <svg
@@ -220,7 +230,7 @@ export default function LoginPage() {
             <span className="font-semibold text-text-primary">vibe</span>
             <span className="font-display italic text-accent">flow</span>
           </h1>
-        </div>
+        </Link>
 
         {/* Mobile tagline */}
         <div className="lg:hidden text-center mb-10 animate-fade-in-up">

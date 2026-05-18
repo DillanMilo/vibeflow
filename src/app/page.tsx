@@ -623,21 +623,27 @@ function Header({
   return (
     <header className="flex-shrink-0 h-14 md:h-16 border-b border-border-subtle bg-background px-4 md:px-6 flex items-center justify-between animate-fade-in relative z-50">
       <div className="flex items-center gap-3 md:gap-4">
-        {/* Logo mark */}
-        <div className="relative">
-          <div className="w-7 h-7 md:w-8 md:h-8 rounded-lg bg-gradient-to-br from-accent to-accent-hover flex items-center justify-center">
-            <svg className="w-3.5 h-3.5 md:w-4 md:h-4 text-background" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
+        <a
+          href="https://flow-os-flax.vercel.app"
+          className="flex items-center gap-3 transition-opacity hover:opacity-85"
+          title="Back to Flow OS"
+        >
+          {/* Logo mark */}
+          <div className="relative">
+            <div className="w-7 h-7 md:w-8 md:h-8 rounded-lg bg-gradient-to-br from-accent to-accent-hover flex items-center justify-center">
+              <svg className="w-3.5 h-3.5 md:w-4 md:h-4 text-background" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            </div>
+            <div className="absolute -inset-1 bg-accent/20 rounded-xl blur-md -z-10" />
           </div>
-          <div className="absolute -inset-1 bg-accent/20 rounded-xl blur-md -z-10" />
-        </div>
 
-        {/* Brand name */}
-        <h1 className="text-lg md:text-xl tracking-tight">
-          <span className="font-semibold text-text-primary">vibe</span>
-          <span className="font-display italic text-accent">flow</span>
-        </h1>
+          {/* Brand name */}
+          <h1 className="text-lg md:text-xl tracking-tight">
+            <span className="font-semibold text-text-primary">vibe</span>
+            <span className="font-display italic text-accent">flow</span>
+          </h1>
+        </a>
 
         {/* Divider */}
         <div className="hidden md:block w-px h-6 bg-border-subtle" />
