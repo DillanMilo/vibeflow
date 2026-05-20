@@ -664,6 +664,19 @@ function Header({
           <SyncStatus />
         </div>
 
+        <a
+          href="https://flow-os-flax.vercel.app/agents"
+          className="flex items-center gap-1.5 px-2 py-1.5 md:px-2.5 rounded-lg border border-border-subtle bg-surface text-xs font-medium text-text-muted transition-all duration-200 hover:text-text-primary hover:bg-surface-hover"
+          title="Open Heimdall security agent in Flow OS"
+          aria-label="Open Heimdall security agent in Flow OS"
+        >
+          <svg className="w-3.5 h-3.5 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 3.75l7.5 3v5.25c0 4.5-3.1 7.95-7.5 9-4.4-1.05-7.5-4.5-7.5-9V6.75l7.5-3z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 12.25l1.5 1.5 3.25-3.5" />
+          </svg>
+          <span className="hidden lg:inline">Heimdall</span>
+        </a>
+
         {/* User menu */}
         <UserMenu />
       </div>
