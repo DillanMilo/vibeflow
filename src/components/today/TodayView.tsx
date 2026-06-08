@@ -3,8 +3,35 @@
 import { useMemo, useRef, useState } from 'react';
 import { useApp } from '@/context/AppContext';
 import { cn } from '@/lib/utils';
-import type { KanbanCard, CardPriority, KanbanStatus, Project } from '@/types';
+import type { KanbanCard, CardPriority, KanbanStatus, Project, CalendarEvent } from '@/types';
 import { PROJECT_COLORS } from '@/types';
+
+interface EventWithProject {
+  event: CalendarEvent;
+  project: Project;
+}
+
+function eventOccursOn(ev: CalendarEvent, dateStr: string): boolean {
+  if (ev.exceptions?.includes(dateStr)) return false;
+  const anchor = new Date(ev.date + 'T12:00:00');
+  const target = new Date(dateStr + 'T12:00:00');
+  if (!ev.recurrence || ev.recurrence === 'none') {
+    return ev.date === dateStr;
+  }
+  if (target < anchor) return false;
+  switch (ev.recurrence) {
+    case 'daily':
+      return true;
+    case 'weekly': {
+      const diffDays = Math.round((target.getTime() - anchor.getTime()) / 86_400_000);
+      return diffDays % 7 === 0;
+    }
+    case 'monthly':
+      return anchor.getDate() === target.getDate();
+    default:
+      return false;
+  }
+}
 
 interface TodayViewProps {
   onNavigateToCard: (projectId: string, cardId: string) => void;
@@ -111,6 +138,126 @@ function groupByProject(items: CardWithProject[]): ProjectGroup[] {
     return a.project.name.localeCompare(b.project.name);
   });
   return groups;
+}
+
+function TodayEvent({
+  item,
+  occurrenceDate,
+}: {
+  item: EventWithProject;
+  occurrenceDate: string;
+}) {
+  const { dispatch, state } = useApp();
+  const { event, project } = item;
+  const projectColor = project.color || PROJECT_COLORS[0];
+  const completions = event.completions || [];
+  const isComplete = completions.includes(occurrenceDate);
+
+  const handleToggleComplete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const next = isComplete
+      ? completions.filter((d) => d !== occurrenceDate)
+      : [...completions, occurrenceDate];
+    if (state.activeProjectId !== project.id) {
+      dispatch({ type: 'SET_ACTIVE_PROJECT', payload: project.id });
+    }
+    queueMicrotask(() => {
+      dispatch({
+        type: 'UPDATE_EVENT',
+        payload: { id: event.id, updates: { completions: next } },
+      });
+    });
+  };
+
+  const recurrenceLabel = event.recurrence && event.recurrence !== 'none'
+    ? event.recurrence
+    : null;
+
+  return (
+    <div
+      className={cn(
+        'group relative w-full text-left',
+        'bg-surface border border-border rounded-xl p-4',
+        'transition-all duration-200',
+        'animate-fade-in-up',
+        isComplete && 'opacity-60'
+      )}
+    >
+      <div
+        className="absolute left-0 top-3 bottom-3 w-0.5 rounded-full"
+        style={{ backgroundColor: event.color }}
+      />
+
+      <div className="flex items-start gap-3">
+        <button
+          type="button"
+          onClick={handleToggleComplete}
+          aria-label={isComplete ? 'Mark as not complete' : 'Mark complete'}
+          className={cn(
+            'flex-shrink-0 mt-0.5 w-5 h-5 rounded-full border-2 transition-all',
+            'flex items-center justify-center',
+            isComplete
+              ? 'bg-success border-success text-background'
+              : 'border-border-accent hover:border-success hover:bg-success/10 text-transparent hover:text-success'
+          )}
+        >
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+        </button>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-text-muted">
+              <span
+                className="w-2 h-2 rounded-full flex-shrink-0"
+                style={{ backgroundColor: projectColor }}
+              />
+              <span className="truncate max-w-[140px]">{project.name}</span>
+            </span>
+            <span className="inline-flex items-center gap-1.5 text-[11px] text-text-dim">
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              Event
+            </span>
+            {recurrenceLabel && (
+              <span
+                className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded font-medium capitalize"
+                style={{ backgroundColor: event.color + '25', color: event.color }}
+              >
+                ↻ {recurrenceLabel}
+              </span>
+            )}
+          </div>
+
+          <p className={cn(
+            'text-sm md:text-[15px] font-medium text-text-primary leading-snug',
+            isComplete && 'line-through text-text-muted'
+          )}>
+            {event.title}
+          </p>
+
+          {event.description && (
+            <p className="mt-1 text-xs text-text-muted leading-relaxed line-clamp-2">
+              {event.description}
+            </p>
+          )}
+
+          {(event.time || event.endTime) && (
+            <div className="flex items-center gap-1.5 mt-2">
+              <span className="inline-flex items-center gap-1 text-[11px] text-text-muted">
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                {event.time}{event.endTime && ` – ${event.endTime}`}
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function TodayCard({
@@ -478,7 +625,9 @@ export function TodayView({ onNavigateToCard }: TodayViewProps) {
   const today = todayIso();
   const [selectedDate, setSelectedDate] = useState<string>(today);
 
-  // Build a map of incomplete-task counts per ISO date for the week strip
+  // Build a map of incomplete-task counts per ISO date for the week strip.
+  // Includes calendar events (and their recurring occurrences) across the
+  // visible week so a repeating "Socials" event shows on every Monday.
   const countByDate = useMemo(() => {
     const map = new Map<string, number>();
     for (const project of state.projects) {
@@ -487,8 +636,43 @@ export function TodayView({ onNavigateToCard }: TodayViewProps) {
         map.set(card.dueDate, (map.get(card.dueDate) || 0) + 1);
       }
     }
+    // Count event occurrences for the 7-day strip starting today.
+    const weekIsos: string[] = [];
+    for (let i = 0; i < 7; i++) weekIsos.push(shiftDate(today, i));
+    for (const project of state.projects) {
+      for (const event of project.events || []) {
+        for (const iso of weekIsos) {
+          if (!eventOccursOn(event, iso)) continue;
+          if (event.completions?.includes(iso)) continue;
+          map.set(iso, (map.get(iso) || 0) + 1);
+        }
+      }
+    }
     return map;
-  }, [state.projects]);
+  }, [state.projects, today]);
+
+  // Events occurring on the selected date (expanded recurrence).
+  const eventsOnDate = useMemo(() => {
+    const items: EventWithProject[] = [];
+    for (const project of state.projects) {
+      for (const event of project.events || []) {
+        if (eventOccursOn(event, selectedDate)) {
+          items.push({ event, project });
+        }
+      }
+    }
+    items.sort((a, b) => {
+      const at = a.event.time || '99:99';
+      const bt = b.event.time || '99:99';
+      if (at !== bt) return at.localeCompare(bt);
+      return a.event.title.localeCompare(b.event.title);
+    });
+    return items;
+  }, [state.projects, selectedDate]);
+
+  const activeEventsOnDate = eventsOnDate.filter(
+    (i) => !i.event.completions?.includes(selectedDate)
+  );
 
   const isToday = selectedDate === today;
   const isPast = !isToday && selectedDate < today;
@@ -521,9 +705,11 @@ export function TodayView({ onNavigateToCard }: TodayViewProps) {
   const overdueGroups = useMemo(() => groupByProject(overdue), [overdue]);
   const completedGroups = useMemo(() => groupByProject(completedOnDate), [completedOnDate]);
 
-  const totalActive = dueOnDate.length + (isToday ? overdue.length : 0);
+  const totalActive =
+    dueOnDate.length + activeEventsOnDate.length + (isToday ? overdue.length : 0);
   const projectsWithWork = new Set([
     ...dueOnDate.map((i) => i.project.id),
+    ...activeEventsOnDate.map((i) => i.project.id),
     ...(isToday ? overdue.map((i) => i.project.id) : []),
   ]);
 
@@ -623,7 +809,7 @@ export function TodayView({ onNavigateToCard }: TodayViewProps) {
         </div>
 
         {/* Empty state */}
-        {totalActive === 0 && completedOnDate.length === 0 && (
+        {totalActive === 0 && completedOnDate.length === 0 && eventsOnDate.length === 0 && (
           <div className="text-center py-12 md:py-20 animate-fade-in-up">
             <div className="relative inline-flex items-center justify-center w-20 h-20 md:w-24 md:h-24 mb-6">
               <div className="absolute inset-0 bg-accent/10 rounded-3xl blur-xl" />
@@ -664,6 +850,29 @@ export function TodayView({ onNavigateToCard }: TodayViewProps) {
                   group={group}
                   onNavigateToCard={onNavigateToCard}
                 />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Events for the selected date (incl. recurring occurrences) */}
+        {eventsOnDate.length > 0 && (
+          <section className="mb-8 animate-fade-in-up" style={{ animationDelay: '100ms' }}>
+            <SectionHeader
+              title={isToday ? 'Events today' : 'Events'}
+              count={eventsOnDate.length}
+              tone="accent"
+              icon={
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              }
+            />
+            <div className="space-y-2">
+              {eventsOnDate.map((item, i) => (
+                <div key={item.event.id} style={{ animationDelay: `${i * 30}ms` }}>
+                  <TodayEvent item={item} occurrenceDate={selectedDate} />
+                </div>
               ))}
             </div>
           </section>
