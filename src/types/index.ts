@@ -47,6 +47,7 @@ export interface CalendarEvent {
   color: CalendarEventColor;
   recurrence?: RecurrenceType; // optional for backward compatibility; absent = 'none'
   exceptions?: string[]; // ISO dates skipped from a recurring series
+  completions?: string[]; // ISO occurrence dates that have been ticked off
   createdAt: number;
 }
 
