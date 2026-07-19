@@ -47,8 +47,8 @@ type Action =
   | { type: 'ADD_TODO_CATEGORY'; payload: string }
   | { type: 'UPDATE_TODO_CATEGORY'; payload: { id: Id; name: string } }
   | { type: 'DELETE_TODO_CATEGORY'; payload: Id }
-  // Notes action (operates on active project)
-  | { type: 'SET_NOTES'; payload: string }
+  // Notes action (targets the project that owns the draft)
+  | { type: 'SET_NOTES'; payload: { projectId: Id; notes: string } }
   // Calendar actions (operate on active project)
   | { type: 'ADD_EVENT'; payload: Omit<CalendarEvent, 'id' | 'createdAt'> }
   | { type: 'UPDATE_EVENT'; payload: { id: Id; updates: Partial<CalendarEvent> } }
@@ -367,10 +367,14 @@ function appReducer(state: AppState, action: Action): AppState {
 
     // === Notes Action ===
     case 'SET_NOTES': {
-      return updateActiveProject(state, (project) => ({
-        ...project,
-        notes: action.payload,
-      }));
+      return {
+        ...state,
+        projects: state.projects.map((project) =>
+          project.id === action.payload.projectId
+            ? { ...project, notes: action.payload.notes }
+            : project
+        ),
+      };
     }
 
     // === Calendar Event Actions ===
