@@ -3,7 +3,81 @@
 import { useState, type KeyboardEvent } from 'react';
 import { useApp } from '@/context/AppContext';
 import { cn } from '@/lib/utils';
-import type { TodoItem, TodoCategory } from '@/types';
+import { getTodayIsoDate } from '@/lib/todoRecurrence';
+import type { TodoItem, TodoCategory, TodoRecurrence } from '@/types';
+
+const TODO_RECURRENCE_OPTIONS: { value: TodoRecurrence; label: string }[] = [
+  { value: 'none', label: 'One time' },
+  { value: 'daily', label: 'Daily' },
+  { value: 'weekly', label: 'Weekly' },
+  { value: 'monthly', label: 'Monthly' },
+  { value: 'yearly', label: 'Yearly' },
+];
+
+function RecurrenceSelect({
+  value,
+  onChange,
+  compact = false,
+}: {
+  value: TodoRecurrence;
+  onChange: (value: TodoRecurrence) => void;
+  compact?: boolean;
+}) {
+  return (
+    <label className={cn(
+      'flex items-center gap-2 text-text-dim',
+      compact ? 'text-[11px]' : 'text-xs'
+    )}>
+      <svg
+        className="w-3.5 h-3.5 flex-shrink-0"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        aria-hidden="true"
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" d="M20 7h-7a4 4 0 00-4 4v1m-5 5h7a4 4 0 004-4v-1M17 4l3 3-3 3M7 20l-3-3 3-3" />
+      </svg>
+      <span className="flex-shrink-0">Repeat</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value as TodoRecurrence)}
+        aria-label="Task recurrence"
+        className={cn(
+          'min-w-0 bg-surface border border-border rounded-lg text-text-secondary',
+          'focus:outline-none focus:border-border-accent',
+          compact ? 'px-2 py-1 text-[11px]' : 'px-2.5 py-1.5 text-xs'
+        )}
+      >
+        {TODO_RECURRENCE_OPTIONS.map(option => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function formatTodoSchedule(todo: TodoItem): string | null {
+  const recurrence = todo.recurrence || 'none';
+  if (recurrence === 'none') return null;
+
+  const cadence = recurrence[0].toUpperCase() + recurrence.slice(1);
+  if (!todo.dueDate) return cadence;
+
+  const today = getTodayIsoDate();
+  const dateLabel = todo.dueDate === today
+    ? 'today'
+    : new Date(`${todo.dueDate}T12:00:00`).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+      });
+
+  if (todo.completed) return `${cadence} · next ${dateLabel}`;
+  if (todo.dueDate < today) return `${cadence} · overdue ${dateLabel}`;
+  return `${cadence} · ${dateLabel}`;
+}
 
 function TodoItemRow({
   todo,
@@ -18,6 +92,8 @@ function TodoItemRow({
   onDelete: () => void;
   index: number;
 }) {
+  const scheduleLabel = formatTodoSchedule(todo);
+
   return (
     <div
       className={cn(
@@ -46,17 +122,31 @@ function TodoItemRow({
         )}
       </button>
 
-      {/* Task text */}
-      <span
-        className={cn(
-          'flex-1 text-sm truncate transition-all duration-200',
-          todo.completed
-            ? 'text-text-dim line-through'
-            : 'text-text-primary'
+      {/* Task text and recurrence */}
+      <div className="flex-1 min-w-0">
+        <span
+          className={cn(
+            'block text-sm truncate transition-all duration-200',
+            todo.completed
+              ? 'text-text-dim line-through'
+              : 'text-text-primary'
+          )}
+        >
+          {todo.text}
+        </span>
+        {scheduleLabel && (
+          <span
+            className={cn(
+              'inline-flex items-center gap-1 mt-0.5 text-[10px]',
+              todo.completed ? 'text-text-dim' : 'text-accent'
+            )}
+            title={`Repeats ${todo.recurrence}`}
+          >
+            <span aria-hidden="true">↻</span>
+            {scheduleLabel}
+          </span>
         )}
-      >
-        {todo.text}
-      </span>
+      </div>
 
       {/* Action buttons - always visible on touch devices, hover-reveal on hover-capable desktops only */}
       <div className={cn(
@@ -106,6 +196,7 @@ function CategorySection({
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [newTodo, setNewTodo] = useState('');
+  const [recurrence, setRecurrence] = useState<TodoRecurrence>('none');
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(category.name);
 
@@ -114,13 +205,26 @@ function CategorySection({
   const handleAddTodo = () => {
     const text = newTodo.trim();
     if (!text) return;
-    dispatch({ type: 'ADD_TODO', payload: { text, categoryId: category.id } });
+    dispatch({
+      type: 'ADD_TODO',
+      payload: {
+        text,
+        categoryId: category.id,
+        recurrence,
+        dueDate: recurrence === 'none' ? undefined : getTodayIsoDate(),
+      },
+    });
     setNewTodo('');
+    setRecurrence('none');
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') handleAddTodo();
-    if (e.key === 'Escape') { setNewTodo(''); setIsAdding(false); }
+    if (e.key === 'Escape') {
+      setNewTodo('');
+      setRecurrence('none');
+      setIsAdding(false);
+    }
   };
 
   const handleSaveEdit = () => {
@@ -224,37 +328,50 @@ function CategorySection({
 
           {/* Inline add for this category */}
           {isAdding ? (
-            <div className="flex gap-1.5 py-1.5 px-1 animate-fade-in">
-              <input
-                type="text"
-                value={newTodo}
-                onChange={(e) => setNewTodo(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="New task..."
-                autoFocus
-                className={cn(
-                  'flex-1 bg-surface border border-border rounded-lg px-2.5 py-1.5 text-xs',
-                  'text-text-primary placeholder:text-text-dim',
-                  'focus:outline-none focus:border-border-accent'
-                )}
-              />
-              <button
-                onClick={handleAddTodo}
-                disabled={!newTodo.trim()}
-                className={cn(
-                  'px-2.5 py-1.5 text-xs font-medium rounded-lg transition-all',
-                  'bg-accent text-background hover:bg-accent-hover active:scale-95',
-                  'disabled:opacity-40 disabled:cursor-not-allowed'
-                )}
-              >
-                Add
-              </button>
-              <button
-                onClick={() => { setNewTodo(''); setIsAdding(false); }}
-                className="px-2 py-1.5 text-xs text-text-muted hover:text-text-primary transition-colors"
-              >
-                Cancel
-              </button>
+            <div className="space-y-2 py-1.5 px-1 animate-fade-in">
+              <div className="flex gap-1.5">
+                <input
+                  type="text"
+                  value={newTodo}
+                  onChange={(e) => setNewTodo(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="New task..."
+                  autoFocus
+                  className={cn(
+                    'flex-1 min-w-0 bg-surface border border-border rounded-lg px-2.5 py-1.5 text-xs',
+                    'text-text-primary placeholder:text-text-dim',
+                    'focus:outline-none focus:border-border-accent'
+                  )}
+                />
+                <button
+                  onClick={handleAddTodo}
+                  disabled={!newTodo.trim()}
+                  className={cn(
+                    'px-2.5 py-1.5 text-xs font-medium rounded-lg transition-all',
+                    'bg-accent text-background hover:bg-accent-hover active:scale-95',
+                    'disabled:opacity-40 disabled:cursor-not-allowed'
+                  )}
+                >
+                  Add
+                </button>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <RecurrenceSelect
+                  value={recurrence}
+                  onChange={setRecurrence}
+                  compact
+                />
+                <button
+                  onClick={() => {
+                    setNewTodo('');
+                    setRecurrence('none');
+                    setIsAdding(false);
+                  }}
+                  className="px-2 py-1.5 text-[11px] text-text-muted hover:text-text-primary transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           ) : (
             <button
@@ -277,14 +394,23 @@ function CategorySection({
 export function TodoList() {
   const { todos, todoCategories, dispatch } = useApp();
   const [newTodo, setNewTodo] = useState('');
+  const [recurrence, setRecurrence] = useState<TodoRecurrence>('none');
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
 
   const handleAddTodo = () => {
     const text = newTodo.trim();
     if (!text) return;
-    dispatch({ type: 'ADD_TODO', payload: text });
+    dispatch({
+      type: 'ADD_TODO',
+      payload: {
+        text,
+        recurrence,
+        dueDate: recurrence === 'none' ? undefined : getTodayIsoDate(),
+      },
+    });
     setNewTodo('');
+    setRecurrence('none');
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -326,35 +452,38 @@ export function TodoList() {
       </div>
 
       {/* Add task input (adds to General/uncategorized) */}
-      <div className="flex gap-2 mb-3 md:mb-4">
-        <div className="relative flex-1">
-          <input
-            type="text"
-            value={newTodo}
-            onChange={(e) => setNewTodo(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Add a quick task..."
+      <div className="space-y-2 mb-3 md:mb-4">
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <input
+              type="text"
+              value={newTodo}
+              onChange={(e) => setNewTodo(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Add a quick task..."
+              className={cn(
+                'w-full bg-surface border border-border rounded-lg px-3 md:px-4 py-2.5 md:py-2.5 text-sm',
+                'text-text-primary placeholder:text-text-dim',
+                'focus:outline-none focus:border-border-accent focus:ring-1 focus:ring-accent/20',
+                'transition-all duration-200'
+              )}
+            />
+          </div>
+          <button
+            onClick={handleAddTodo}
+            disabled={!newTodo.trim()}
             className={cn(
-              'w-full bg-surface border border-border rounded-lg px-3 md:px-4 py-2.5 md:py-2.5 text-sm',
-              'text-text-primary placeholder:text-text-dim',
-              'focus:outline-none focus:border-border-accent focus:ring-1 focus:ring-accent/20',
-              'transition-all duration-200'
+              'px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200',
+              'bg-surface border border-border',
+              'text-text-secondary hover:text-text-primary active:text-text-primary',
+              'hover:bg-surface-hover active:bg-surface-active hover:border-border-accent',
+              'disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-surface disabled:hover:border-border'
             )}
-          />
+          >
+            Add
+          </button>
         </div>
-        <button
-          onClick={handleAddTodo}
-          disabled={!newTodo.trim()}
-          className={cn(
-            'px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200',
-            'bg-surface border border-border',
-            'text-text-secondary hover:text-text-primary active:text-text-primary',
-            'hover:bg-surface-hover active:bg-surface-active hover:border-border-accent',
-            'disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-surface disabled:hover:border-border'
-          )}
-        >
-          Add
-        </button>
+        <RecurrenceSelect value={recurrence} onChange={setRecurrence} />
       </div>
 
       {/* Tasks list */}
@@ -408,17 +537,6 @@ export function TodoList() {
               </div>
             )}
 
-            {/* Uncategorized todos when no categories exist */}
-            {todoCategories.length === 0 && uncategorizedTodos.map((todo, index) => (
-              <TodoItemRow
-                key={todo.id}
-                todo={todo}
-                index={index}
-                onToggle={() => dispatch({ type: 'TOGGLE_TODO', payload: todo.id })}
-                onPromote={() => dispatch({ type: 'PROMOTE_TODO', payload: todo.id })}
-                onDelete={() => dispatch({ type: 'DELETE_TODO', payload: todo.id })}
-              />
-            ))}
           </div>
         )}
       </div>

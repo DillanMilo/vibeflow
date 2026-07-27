@@ -12,8 +12,13 @@ import {
   type Dispatch,
 } from 'react';
 import { generateId } from '@/lib/utils';
-import type { AppState, KanbanCard, KanbanStatus, TodoItem, TodoCategory, CalendarEvent, ActivityEntry, Id, Project } from '@/types';
+import type { AppState, KanbanCard, KanbanStatus, TodoItem, TodoCategory, TodoRecurrence, CalendarEvent, ActivityEntry, Id, Project } from '@/types';
 import { STORAGE_KEY, PROJECT_COLORS } from '@/types';
+import {
+  getNextTodoDueDate,
+  getTodayIsoDate,
+  refreshRecurringTodo,
+} from '@/lib/todoRecurrence';
 import { useAuth } from './AuthContext';
 import {
   fetchUserData,
@@ -39,10 +44,11 @@ type Action =
   | { type: 'MOVE_CARD'; payload: { id: Id; status: KanbanStatus; newIndex?: number } }
   | { type: 'REORDER_CARDS'; payload: { status: KanbanStatus; cardIds: Id[] } }
   // Todo actions (operate on active project)
-  | { type: 'ADD_TODO'; payload: string | { text: string; categoryId?: Id } }
+  | { type: 'ADD_TODO'; payload: string | { text: string; categoryId?: Id; recurrence?: TodoRecurrence; dueDate?: string } }
   | { type: 'TOGGLE_TODO'; payload: Id }
   | { type: 'DELETE_TODO'; payload: Id }
   | { type: 'PROMOTE_TODO'; payload: Id }
+  | { type: 'REFRESH_RECURRING_TODOS'; payload?: { today?: string } }
   // Todo category actions (operate on active project)
   | { type: 'ADD_TODO_CATEGORY'; payload: string }
   | { type: 'UPDATE_TODO_CATEGORY'; payload: { id: Id; name: string } }
@@ -107,11 +113,13 @@ const addActivity = (project: Project, type: ActivityEntry['type'], title: strin
 function appReducer(state: AppState, action: Action): AppState {
   switch (action.type) {
     case 'HYDRATE': {
-      // Ensure all projects have events, activities, and todoCategories arrays (migration safety)
+      const today = getTodayIsoDate();
+      // Ensure all projects have the latest arrays and todo recurrence fields.
       const migratedPayload = {
         ...action.payload,
         projects: action.payload.projects.map(p => ({
           ...p,
+          todos: (p.todos || []).map(todo => refreshRecurringTodo(todo, today)),
           events: p.events || [],
           activities: p.activities || [],
           todoCategories: p.todoCategories || [],
@@ -265,8 +273,9 @@ function appReducer(state: AppState, action: Action): AppState {
     // === Todo Actions (operate on active project) ===
     case 'ADD_TODO': {
       const todoData = typeof action.payload === 'string'
-        ? { text: action.payload, categoryId: undefined }
+        ? { text: action.payload, categoryId: undefined, recurrence: 'none' as const, dueDate: undefined }
         : action.payload;
+      const recurrence = todoData.recurrence || 'none';
       return updateActiveProject(state, (project) => {
         const updated = {
           ...project,
@@ -277,6 +286,10 @@ function appReducer(state: AppState, action: Action): AppState {
               text: todoData.text,
               completed: false,
               categoryId: todoData.categoryId,
+              recurrence,
+              dueDate: recurrence === 'none'
+                ? undefined
+                : (todoData.dueDate || getTodayIsoDate()),
             },
           ],
         };
@@ -287,19 +300,43 @@ function appReducer(state: AppState, action: Action): AppState {
     case 'TOGGLE_TODO': {
       return updateActiveProject(state, (project) => {
         const todo = project.todos.find(t => t.id === action.payload);
+        if (!todo) return project;
+        const recurrence = todo.recurrence || 'none';
+        const isCompleting = !todo.completed;
+        const today = getTodayIsoDate();
         const updated = {
           ...project,
           todos: project.todos.map((t) =>
             t.id === action.payload
-              ? { ...t, completed: !t.completed }
+              ? recurrence === 'none'
+                ? { ...t, completed: isCompleting }
+                : {
+                    ...t,
+                    completed: isCompleting,
+                    recurrence,
+                    dueDate: isCompleting
+                      ? getNextTodoDueDate(t.dueDate, recurrence, today)
+                      : today,
+                  }
               : t
           ),
         };
-        if (todo && !todo.completed) {
+        if (isCompleting) {
           return addActivity(updated, 'todo_completed', `Task "${todo.text}" completed`);
         }
         return updated;
       });
+    }
+
+    case 'REFRESH_RECURRING_TODOS': {
+      const today = action.payload?.today || getTodayIsoDate();
+      return {
+        ...state,
+        projects: state.projects.map(project => ({
+          ...project,
+          todos: project.todos.map(todo => refreshRecurringTodo(todo, today)),
+        })),
+      };
     }
 
     case 'DELETE_TODO': {
@@ -598,6 +635,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     previousStateRef.current = state;
   }, [state, isHydrated, user]);
+
+  // Wake completed recurring tasks when their next occurrence arrives.
+  useEffect(() => {
+    if (!isHydrated) return;
+
+    let timeoutId: ReturnType<typeof setTimeout>;
+    const scheduleNextRefresh = () => {
+      const now = new Date();
+      const nextMidnight = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate() + 1,
+        0,
+        0,
+        1
+      );
+      timeoutId = setTimeout(() => {
+        dispatch({ type: 'REFRESH_RECURRING_TODOS' });
+        scheduleNextRefresh();
+      }, nextMidnight.getTime() - now.getTime());
+    };
+
+    scheduleNextRefresh();
+    return () => clearTimeout(timeoutId);
+  }, [isHydrated]);
 
   // Compute convenience values
   const activeProject = state.activeProjectId

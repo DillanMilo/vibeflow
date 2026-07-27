@@ -1,5 +1,5 @@
 import { getSupabaseClient } from './client';
-import type { AppState, Project, KanbanCard, TodoItem, TodoCategory, KanbanStatus } from '@/types';
+import type { AppState, Project, KanbanCard, TodoItem, TodoCategory, KanbanStatus, TodoRecurrence } from '@/types';
 import type { Database } from '@/types/supabase';
 
 type DbProject = Database['public']['Tables']['projects']['Row'];
@@ -68,6 +68,8 @@ function dbTodoToTodo(dbTodo: DbTodo): TodoItem {
     text: dbTodo.text,
     completed: dbTodo.completed,
     categoryId: dbTodo.category_id ?? undefined,
+    recurrence: (dbTodo.recurrence as TodoRecurrence) || 'none',
+    dueDate: dbTodo.due_date ?? undefined,
   };
 }
 
@@ -228,6 +230,8 @@ export async function createTodo(
     text: todo.text,
     completed: todo.completed,
     category_id: todo.categoryId || null,
+    recurrence: todo.recurrence || 'none',
+    due_date: todo.dueDate || null,
     position,
   });
 
@@ -240,10 +244,13 @@ export async function updateTodo(
 ): Promise<void> {
   const supabase = getSupabaseClient();
 
-  const { categoryId, ...rest } = updates;
+  const { categoryId, dueDate, ...rest } = updates;
   const dbUpdates: Record<string, unknown> = { ...rest };
   if (categoryId !== undefined) {
     dbUpdates.category_id = categoryId || null;
+  }
+  if (dueDate !== undefined) {
+    dbUpdates.due_date = dueDate || null;
   }
 
   const { error } = await supabase
@@ -472,11 +479,15 @@ async function syncTodos(
     const prevTodo = prevTodos.find(t => t.id === currTodo.id);
     if (prevTodo && (
       prevTodo.completed !== currTodo.completed ||
-      prevTodo.categoryId !== currTodo.categoryId
+      prevTodo.categoryId !== currTodo.categoryId ||
+      prevTodo.recurrence !== currTodo.recurrence ||
+      prevTodo.dueDate !== currTodo.dueDate
     )) {
       await updateTodo(currTodo.id, {
         completed: currTodo.completed,
         categoryId: currTodo.categoryId,
+        recurrence: currTodo.recurrence,
+        dueDate: currTodo.dueDate,
       });
     }
   }

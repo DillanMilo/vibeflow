@@ -20,11 +20,15 @@ export interface TodoCategory {
   name: string;
 }
 
+export type TodoRecurrence = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly';
+
 export interface TodoItem {
   id: Id;
   text: string;
   completed: boolean;
   categoryId?: Id;
+  recurrence?: TodoRecurrence;
+  dueDate?: string; // ISO date for the current or next occurrence
 }
 
 export interface Column {

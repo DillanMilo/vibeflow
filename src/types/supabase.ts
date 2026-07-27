@@ -136,6 +136,8 @@ export interface Database {
           text: string;
           completed: boolean;
           category_id: string | null;
+          recurrence: string;
+          due_date: string | null;
           position: number;
           created_at: string;
           updated_at: string;
@@ -147,6 +149,8 @@ export interface Database {
           text: string;
           completed?: boolean;
           category_id?: string | null;
+          recurrence?: string;
+          due_date?: string | null;
           position?: number;
           created_at?: string;
           updated_at?: string;
@@ -158,6 +162,8 @@ export interface Database {
           text?: string;
           completed?: boolean;
           category_id?: string | null;
+          recurrence?: string;
+          due_date?: string | null;
           position?: number;
           created_at?: string;
           updated_at?: string;
