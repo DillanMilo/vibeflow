@@ -350,7 +350,8 @@ export async function syncToSupabase(
       }
     }
 
-    // Updated projects (name, color, notes, todoCategories)
+    // Updated project metadata. Notes use their own serialized save queue so
+    // an older request can never finish after and overwrite a newer draft.
     for (const currProject of curr.projects) {
       const prevProject = prev.projects.find(p => p.id === currProject.id);
       if (prevProject) {
@@ -360,15 +361,13 @@ export async function syncToSupabase(
         if (
           prevProject.name !== currProject.name ||
           prevProject.color !== currProject.color ||
-          prevProject.notes !== currProject.notes ||
           categoriesChanged
         ) {
-          await updateProject(currProject.id, {
-            name: currProject.name,
-            color: currProject.color,
-            notes: currProject.notes,
-            todoCategories: currProject.todoCategories,
-          });
+          const updates: Partial<Pick<Project, 'name' | 'color' | 'todoCategories'>> = {};
+          if (prevProject.name !== currProject.name) updates.name = currProject.name;
+          if (prevProject.color !== currProject.color) updates.color = currProject.color;
+          if (categoriesChanged) updates.todoCategories = currProject.todoCategories;
+          await updateProject(currProject.id, updates);
         }
 
         // Sync cards within project

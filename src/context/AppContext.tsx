@@ -25,8 +25,14 @@ import {
   createProject as dbCreateProject,
   migrateLocalStorageToSupabase,
   syncToSupabase,
+  updateProject as dbUpdateProject,
 } from '@/lib/supabase/sync';
 import { useRealtimeSync } from '@/hooks/useRealtimeSync';
+import {
+  createNotesSaveQueue,
+  mergeAuthoritativeNotes,
+  type NotesAuthority,
+} from '@/lib/notesPersistence';
 
 // Migration: old storage key for migrating existing data
 const OLD_STORAGE_KEY = 'vibeflow-data';
@@ -461,6 +467,7 @@ interface AppContextType {
   isHydrated: boolean;
   isSyncing: boolean;
   syncError: string | null;
+  saveNotes: (projectId: Id, notes: string) => Promise<void>;
   // Convenience getters for active project
   activeProject: Project | null;
   cards: KanbanCard[];
@@ -481,6 +488,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [syncError, setSyncError] = useState<string | null>(null);
   const hasHydrated = useRef(false);
   const previousStateRef = useRef<AppState>(initialState);
+  const notesAuthorityRef = useRef(new Map<string, NotesAuthority>());
+  const notesSaveQueueRef = useRef(
+    createNotesSaveQueue((projectId, notes) => dbUpdateProject(projectId, { notes }))
+  );
 
   // Handle realtime updates from other devices
   const handleRealtimeUpdate = useCallback((newState: AppState) => {
@@ -488,17 +499,50 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const activeId = state.activeProjectId;
     const projectExists = newState.projects.some(p => p.id === activeId);
 
+    const mergedState = mergeAuthoritativeNotes(newState, notesAuthorityRef.current);
+
     dispatch({
       type: 'HYDRATE',
       payload: {
-        ...newState,
-        activeProjectId: projectExists ? activeId : newState.activeProjectId,
+        ...mergedState,
+        activeProjectId: projectExists ? activeId : mergedState.activeProjectId,
       },
     });
   }, [state.activeProjectId]);
 
   // Set up realtime subscriptions
   useRealtimeSync(user?.id || null, handleRealtimeUpdate);
+
+  const saveNotes = useCallback((projectId: Id, nextNotes: string) => {
+    dispatch({ type: 'SET_NOTES', payload: { projectId, notes: nextNotes } });
+
+    if (!user) return Promise.resolve();
+
+    notesAuthorityRef.current.set(projectId, {
+      value: nextNotes,
+      pending: true,
+      protectUntil: Number.POSITIVE_INFINITY,
+    });
+
+    return notesSaveQueueRef.current(projectId, nextNotes).then(
+      () => {
+        const current = notesAuthorityRef.current.get(projectId);
+        if (current?.value === nextNotes) {
+          notesAuthorityRef.current.set(projectId, {
+            value: nextNotes,
+            pending: false,
+            // Keep protecting against a refetch that began before this write.
+            protectUntil: Date.now() + 30_000,
+          });
+        }
+      },
+      (error) => {
+        // Keep the failed value authoritative in memory. NotesArea also keeps
+        // a durable local draft and will retry on the next edit or blur.
+        throw error;
+      }
+    );
+  }, [user]);
 
   // Helper to load from localStorage
   const loadFromLocalStorage = useCallback(() => {
@@ -672,6 +716,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     isHydrated,
     isSyncing,
     syncError,
+    saveNotes,
     activeProject,
     cards: activeProject?.cards || [],
     todos: activeProject?.todos || [],

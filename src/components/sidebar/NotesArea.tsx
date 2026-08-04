@@ -1,7 +1,12 @@
 'use client';
 
-import { startTransition, useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useApp } from '@/context/AppContext';
+import {
+  clearStoredNotesDraft,
+  readStoredNotesDraft,
+  storeNotesDraft,
+} from '@/lib/notesPersistence';
 import { cn } from '@/lib/utils';
 
 type NotesDraft = {
@@ -9,19 +14,18 @@ type NotesDraft = {
   value: string;
 };
 
-type PendingCommit = NotesDraft & {
-  ignoreExternalUntil: number;
-};
+type SaveStatus = 'saved' | 'saving' | 'error';
 
 export function NotesArea() {
-  const { activeProject, notes, dispatch } = useApp();
+  const { activeProject, notes, saveNotes } = useApp();
   const projectId = activeProject?.id ?? null;
-  const [isSaved, setIsSaved] = useState(true);
-  const [savedLength, setSavedLength] = useState(notes.length);
+  const [localNotes, setLocalNotes] = useState(notes);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
   const draftRef = useRef<NotesDraft>({ projectId, value: notes });
   const isDirtyRef = useRef(false);
-  const lastCommittedRef = useRef<PendingCommit | null>(null);
+  const initializedProjectRef = useRef<string | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mountedRef = useRef(true);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const clearSaveTimeout = useCallback(() => {
@@ -32,132 +36,135 @@ export function NotesArea() {
   }, []);
 
   const commitDraft = useCallback((nextDraft: NotesDraft) => {
-    const targetProjectId = nextDraft.projectId;
-    if (!targetProjectId) return;
+    if (!nextDraft.projectId) return;
 
     clearSaveTimeout();
-    lastCommittedRef.current = {
-      ...nextDraft,
-      // Realtime can briefly return the previous server value while our write
-      // is still settling. Keep the local draft authoritative during that gap.
-      ignoreExternalUntil: Date.now() + 5_000,
-    };
+    const { projectId: targetProjectId, value } = nextDraft;
 
-    if (
-      draftRef.current.projectId === nextDraft.projectId &&
-      draftRef.current.value === nextDraft.value
-    ) {
-      isDirtyRef.current = false;
-      setSavedLength(nextDraft.value.length);
-      setIsSaved(true);
-    }
+    void saveNotes(targetProjectId, value).then(
+      () => {
+        const storedDraft = readStoredNotesDraft(targetProjectId, window.localStorage);
+        if (storedDraft?.value === value) {
+          clearStoredNotesDraft(targetProjectId, window.localStorage);
+        }
 
-    // The textarea owns the urgent typing state. Updating the project and
-    // starting persistence can happen at lower priority after the user pauses.
-    startTransition(() => {
-      dispatch({
-        type: 'SET_NOTES',
-        payload: { projectId: targetProjectId, notes: nextDraft.value },
-      });
-    });
-  }, [clearSaveTimeout, dispatch]);
+        if (
+          mountedRef.current &&
+          draftRef.current.projectId === targetProjectId &&
+          draftRef.current.value === value
+        ) {
+          isDirtyRef.current = false;
+          setSaveStatus('saved');
+        }
+      },
+      () => {
+        if (
+          mountedRef.current &&
+          draftRef.current.projectId === targetProjectId &&
+          draftRef.current.value === value
+        ) {
+          setSaveStatus('error');
+        }
+      }
+    );
+  }, [clearSaveTimeout, saveNotes]);
 
-  // Reset the draft when switching projects. For same-project updates, ignore
-  // the server echo of our own save and never replace text that is still being
-  // edited locally.
+  // A local draft always wins after a refresh or a failed network request.
+  // It is retried immediately and only removed after the server confirms it.
   useEffect(() => {
-    const currentDraft = draftRef.current;
-
-    if (currentDraft.projectId !== projectId) {
-      clearSaveTimeout();
-
-      const previousProjectId = currentDraft.projectId;
-      if (isDirtyRef.current && previousProjectId) {
-        startTransition(() => {
-          dispatch({
-            type: 'SET_NOTES',
-            payload: {
-              projectId: previousProjectId,
-              notes: currentDraft.value,
-            },
-          });
-        });
+    if (initializedProjectRef.current !== projectId) {
+      const previousDraft = draftRef.current;
+      if (isDirtyRef.current && previousDraft.projectId) {
+        commitDraft(previousDraft);
       }
 
-      const nextDraft = { projectId, value: notes };
+      clearSaveTimeout();
+      initializedProjectRef.current = projectId;
+
+      const storedDraft = projectId
+        ? readStoredNotesDraft(projectId, window.localStorage)
+        : null;
+      const nextValue = storedDraft?.value ?? notes;
+      const nextDraft = { projectId, value: nextValue };
+
       draftRef.current = nextDraft;
-      isDirtyRef.current = false;
-      lastCommittedRef.current = null;
+      isDirtyRef.current = Boolean(storedDraft && nextValue !== notes);
+
       queueMicrotask(() => {
-        setSavedLength(notes.length);
-        setIsSaved(true);
+        if (initializedProjectRef.current !== projectId) return;
+        setLocalNotes(nextValue);
+        setSaveStatus(isDirtyRef.current ? 'saving' : 'saved');
       });
+
+      if (isDirtyRef.current) {
+        commitDraft(nextDraft);
+      } else if (storedDraft && projectId) {
+        clearStoredNotesDraft(projectId, window.localStorage);
+      }
       return;
     }
 
-    if (isDirtyRef.current) return;
-
-    const lastCommitted = lastCommittedRef.current;
-    if (lastCommitted?.projectId === projectId) {
-      if (Date.now() < lastCommitted.ignoreExternalUntil) {
-        return;
-      }
-      lastCommittedRef.current = null;
+    // Realtime data may refresh the project repeatedly. It can update a clean
+    // editor, but it must never replace a local draft that is being typed.
+    if (
+      !isDirtyRef.current &&
+      draftRef.current.value !== notes &&
+      document.activeElement !== textareaRef.current
+    ) {
+      draftRef.current = { projectId, value: notes };
+      queueMicrotask(() => {
+        if (initializedProjectRef.current === projectId && !isDirtyRef.current) {
+          setLocalNotes(notes);
+        }
+      });
     }
-
-    if (currentDraft.value !== notes) {
-      const nextDraft = { projectId, value: notes };
-      draftRef.current = nextDraft;
-      if (textareaRef.current && document.activeElement !== textareaRef.current) {
-        textareaRef.current.value = notes;
-        queueMicrotask(() => setSavedLength(notes.length));
-      }
-    }
-  }, [clearSaveTimeout, dispatch, notes, projectId]);
+  }, [clearSaveTimeout, commitDraft, notes, projectId]);
 
   const handleChange = (value: string) => {
     const nextDraft = { projectId, value };
     draftRef.current = nextDraft;
     isDirtyRef.current = true;
-    setIsSaved(false);
+    setLocalNotes(value);
+    setSaveStatus('saving');
+
+    if (projectId) {
+      storeNotesDraft(projectId, value, window.localStorage);
+    }
 
     clearSaveTimeout();
-    timeoutRef.current = setTimeout(() => {
-      commitDraft(nextDraft);
-    }, 500);
+    timeoutRef.current = setTimeout(() => commitDraft(nextDraft), 500);
   };
 
   const handleBlur = () => {
     if (isDirtyRef.current) {
       commitDraft(draftRef.current);
-    } else if (draftRef.current.value !== notes && textareaRef.current) {
-      const nextDraft = { projectId, value: notes };
-      draftRef.current = nextDraft;
-      textareaRef.current.value = notes;
-      setSavedLength(notes.length);
+    } else if (draftRef.current.value !== notes) {
+      draftRef.current = { projectId, value: notes };
+      setLocalNotes(notes);
     }
   };
 
-  // Flush a pending draft when the Notes panel is closed.
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
+      mountedRef.current = false;
       clearSaveTimeout();
-      const pendingDraft = draftRef.current;
-      if (isDirtyRef.current && pendingDraft.projectId) {
-        dispatch({
-          type: 'SET_NOTES',
-          payload: {
-            projectId: pendingDraft.projectId,
-            notes: pendingDraft.value,
-          },
+      if (isDirtyRef.current && draftRef.current.projectId) {
+        void saveNotes(draftRef.current.projectId, draftRef.current.value).catch(() => {
+          // The durable local draft remains available for the next mount.
         });
       }
     };
-  }, [clearSaveTimeout, dispatch]);
+  }, [clearSaveTimeout, saveNotes]);
+
+  const statusLabel = saveStatus === 'saved'
+    ? 'Saved'
+    : saveStatus === 'error'
+      ? 'Saved locally'
+      : 'Saving...';
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
       <div className="flex items-center justify-between mb-3 md:mb-4">
         <h2 className="text-base md:text-sm font-semibold text-text-primary tracking-wide">
           Notes
@@ -166,22 +173,21 @@ export function NotesArea() {
           <div
             className={cn(
               'w-2 h-2 md:w-1.5 md:h-1.5 rounded-full transition-all duration-300',
-              isSaved ? 'bg-success' : 'bg-accent animate-pulse'
+              saveStatus === 'saved' && 'bg-success',
+              saveStatus === 'saving' && 'bg-accent animate-pulse',
+              saveStatus === 'error' && 'bg-amber-500'
             )}
           />
-          <span className="text-xs text-text-dim">
-            {isSaved ? 'Saved' : 'Saving...'}
-          </span>
+          <span className="text-xs text-text-dim">{statusLabel}</span>
         </div>
       </div>
 
-      {/* Notes textarea */}
       <div className="relative flex-1 min-h-0">
         <textarea
           key={projectId ?? 'no-project'}
           ref={textareaRef}
-          defaultValue={notes}
-          onChange={(e) => handleChange(e.target.value)}
+          value={localNotes}
+          onChange={(event) => handleChange(event.target.value)}
           onBlur={handleBlur}
           placeholder="Jot down ideas, notes, or anything on your mind..."
           className={cn(
@@ -195,15 +201,13 @@ export function NotesArea() {
           style={{ WebkitOverflowScrolling: 'touch' }}
         />
 
-        {/* Character count hint */}
-        {savedLength > 0 && (
+        {localNotes.length > 0 && (
           <div className="absolute bottom-3 right-3 text-xs text-text-dim/50">
-            {savedLength.toLocaleString()} chars
+            {localNotes.length.toLocaleString()} chars
           </div>
         )}
       </div>
 
-      {/* Quick formatting hint */}
       <div className="mt-3 flex items-center gap-2 text-xs text-text-dim/60">
         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
           <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
