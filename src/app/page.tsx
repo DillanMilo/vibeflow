@@ -12,6 +12,7 @@ import { PROJECT_COLORS } from '@/types';
 
 type MobileView = 'today' | 'board' | 'tasks' | 'calendar' | 'notes';
 type DesktopView = 'today' | 'board';
+type DesktopUtility = 'tasks' | 'notes' | 'calendar';
 
 function LoadingSkeleton() {
   return (
@@ -764,11 +765,121 @@ function MobileNav({ activeView, onViewChange }: { activeView: MobileView; onVie
   );
 }
 
+const DESKTOP_UTILITIES: { id: DesktopUtility; label: string; icon: React.ReactNode }[] = [
+  {
+    id: 'tasks',
+    label: 'Tasks',
+    icon: (
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+      </svg>
+    ),
+  },
+  {
+    id: 'notes',
+    label: 'Notes',
+    icon: (
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+      </svg>
+    ),
+  },
+  {
+    id: 'calendar',
+    label: 'Calendar',
+    icon: (
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+      </svg>
+    ),
+  },
+];
+
+function DesktopUtilityPanel({
+  activeUtility,
+  onChange,
+}: {
+  activeUtility: DesktopUtility | null;
+  onChange: (utility: DesktopUtility | null) => void;
+}) {
+  const activeLabel = DESKTOP_UTILITIES.find(({ id }) => id === activeUtility)?.label;
+
+  return (
+    <>
+      <div className="h-12 flex-shrink-0 px-4 md:px-6 border-b border-border-subtle/60 flex items-center justify-end bg-background">
+        <div className="flex items-center gap-1 p-1 bg-surface/70 border border-border-subtle rounded-xl">
+          {DESKTOP_UTILITIES.map((utility) => (
+            <button
+              key={utility.id}
+              type="button"
+              onClick={() => onChange(activeUtility === utility.id ? null : utility.id)}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
+                activeUtility === utility.id
+                  ? 'bg-accent text-background shadow-sm'
+                  : 'text-text-muted hover:text-text-primary hover:bg-surface-hover'
+              )}
+              aria-expanded={activeUtility === utility.id}
+              aria-controls="desktop-utility-drawer"
+            >
+              {utility.icon}
+              {utility.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {activeUtility && (
+        <>
+          <button
+            type="button"
+            className="absolute inset-x-0 bottom-0 top-12 z-20 bg-black/30 animate-fade-in cursor-default"
+            onClick={() => onChange(null)}
+            aria-label="Close utility panel"
+          />
+          <aside
+            id="desktop-utility-drawer"
+            aria-label={`${activeLabel} panel`}
+            className="absolute bottom-0 right-0 top-12 z-30 w-[min(380px,46vw)] border-l border-border bg-background-elevated shadow-2xl flex flex-col animate-slide-in"
+          >
+            <div className="h-14 px-5 border-b border-border-subtle flex items-center justify-between flex-shrink-0">
+              <div>
+                <h2 className="text-sm font-semibold text-text-primary">{activeLabel}</h2>
+                <p className="text-[11px] text-text-dim">Project workspace</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onChange(null)}
+                className="p-2 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface-hover transition-colors"
+                aria-label={`Close ${activeLabel} panel`}
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="flex-1 min-h-0 overflow-hidden p-5">
+              {activeUtility === 'tasks' && <Sidebar view="tasks" />}
+              {activeUtility === 'notes' && <Sidebar view="notes" />}
+              {activeUtility === 'calendar' && (
+                <div className="h-full overflow-y-auto">
+                  <Calendar />
+                </div>
+              )}
+            </div>
+          </aside>
+        </>
+      )}
+    </>
+  );
+}
+
 export default function Home() {
   const { isHydrated, dispatch, state } = useApp();
   const [mobileView, setMobileView] = useState<MobileView>('today');
   const [desktopView, setDesktopView] = useState<DesktopView>('today');
-  const [desktopRightPanel, setDesktopRightPanel] = useState<'tasks' | 'notes' | 'calendar'>('tasks');
+  const [desktopUtility, setDesktopUtility] = useState<DesktopUtility | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
   const handleNavigateToCard = useCallback(
@@ -798,6 +909,17 @@ export default function Home() {
     [dispatch, state.activeProjectId]
   );
 
+  useEffect(() => {
+    if (!desktopUtility) return;
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setDesktopUtility(null);
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [desktopUtility]);
+
   if (!isHydrated) {
     return <LoadingSkeleton />;
   }
@@ -819,59 +941,15 @@ export default function Home() {
             <TodayView onNavigateToCard={handleNavigateToCard} />
           </main>
         ) : (
-          <>
-            <main className="flex-1 overflow-hidden">
+          <div className="relative flex-1 min-w-0 flex flex-col overflow-hidden">
+            <DesktopUtilityPanel
+              activeUtility={desktopUtility}
+              onChange={setDesktopUtility}
+            />
+            <main className="flex-1 min-h-0 overflow-hidden">
               <KanbanBoard searchQuery={searchQuery} />
             </main>
-
-        {/* Desktop right panel with tab switcher */}
-        <div className="w-[380px] flex-shrink-0 border-l border-border-subtle bg-background-elevated flex flex-col h-full animate-slide-in">
-          {/* Panel tabs */}
-          <div className="flex border-b border-border-subtle flex-shrink-0">
-            {[
-              { id: 'tasks' as const, label: 'Tasks' },
-              { id: 'notes' as const, label: 'Notes' },
-              { id: 'calendar' as const, label: 'Calendar' },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setDesktopRightPanel(tab.id)}
-                className={cn(
-                  'flex-1 px-2 py-3 text-xs font-medium transition-all relative',
-                  desktopRightPanel === tab.id
-                    ? 'text-accent'
-                    : 'text-text-muted hover:text-text-secondary'
-                )}
-              >
-                {tab.label}
-                {desktopRightPanel === tab.id && (
-                  <div className="absolute bottom-0 left-2 right-2 h-0.5 bg-accent rounded-full" />
-                )}
-              </button>
-            ))}
           </div>
-
-          {/* Panel content */}
-          <div className="flex-1 overflow-hidden">
-            {desktopRightPanel === 'tasks' && (
-              <div className="p-5 h-full overflow-hidden">
-                <Sidebar view="tasks" />
-              </div>
-            )}
-            {desktopRightPanel === 'notes' && (
-              <div className="p-5 h-full overflow-hidden">
-                <Sidebar view="notes" />
-              </div>
-            )}
-            {desktopRightPanel === 'calendar' && (
-              <div className="p-5 h-full overflow-y-auto">
-                <Calendar />
-              </div>
-            )}
-          </div>
-        </div>
-          </>
         )}
       </div>
 

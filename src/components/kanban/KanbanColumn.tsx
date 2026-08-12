@@ -4,6 +4,7 @@ import { useState, useMemo, type KeyboardEvent } from 'react';
 import { useApp } from '@/context/AppContext';
 import { KanbanCard } from './KanbanCard';
 import { cn } from '@/lib/utils';
+import { sortCardsByDueDate } from '@/lib/cardSorting';
 import type { KanbanCard as KanbanCardType, KanbanStatus, CardPriority, TodoCategory, Id } from '@/types';
 
 const PRIORITY_CONFIG: Record<CardPriority, { label: string; color: string; bg: string }> = {
@@ -54,8 +55,16 @@ export function KanbanColumn({ id, title, cards, animationDelay = 0 }: KanbanCol
 
   const config = statusConfig[id];
 
+  // Due dates determine display order within a column/category. The sort is
+  // intentionally presentational so moving or editing a card does not rewrite
+  // the user's persisted card order.
+  const orderedCards = useMemo(
+    () => id === 'todo' ? sortCardsByDueDate(cards) : cards,
+    [cards, id]
+  );
+
   // Check if we have any categorized cards in this column
-  const hasCategorizedCards = cards.some(c => c.categoryId);
+  const hasCategorizedCards = orderedCards.some(c => c.categoryId);
 
   // Group cards by category
   const groups = useMemo((): CardGroup[] | null => {
@@ -64,7 +73,7 @@ export function KanbanColumn({ id, title, cards, animationDelay = 0 }: KanbanCol
     const categoryMap = new Map<string, KanbanCardType[]>();
     const uncategorized: KanbanCardType[] = [];
 
-    for (const card of cards) {
+    for (const card of orderedCards) {
       if (card.categoryId) {
         const existing = categoryMap.get(card.categoryId) || [];
         existing.push(card);
@@ -90,7 +99,7 @@ export function KanbanColumn({ id, title, cards, animationDelay = 0 }: KanbanCol
     }
 
     return result;
-  }, [cards, todoCategories, hasCategorizedCards]);
+  }, [orderedCards, todoCategories, hasCategorizedCards]);
 
   const toggleGroup = (groupKey: string) => {
     setCollapsedGroups(prev => {
@@ -200,7 +209,7 @@ export function KanbanColumn({ id, title, cards, animationDelay = 0 }: KanbanCol
 
   const renderFlatCards = () => (
     <div className="space-y-2 md:space-y-3">
-      {cards.map((card, index) => (
+      {orderedCards.map((card, index) => (
         <KanbanCard key={card.id} card={card} index={index} />
       ))}
     </div>
@@ -210,7 +219,7 @@ export function KanbanColumn({ id, title, cards, animationDelay = 0 }: KanbanCol
     <div
       className={cn(
         'flex flex-col flex-shrink-0 animate-fade-in-up md:h-full max-h-none md:max-h-[calc(100dvh-140px)]',
-        'w-full md:w-80' // Full width on mobile, fixed on desktop
+        'w-full md:flex-1 md:basis-72 md:min-w-64 md:max-w-80'
       )}
       style={{ animationDelay: `${animationDelay * 100}ms` }}
     >
@@ -239,7 +248,7 @@ export function KanbanColumn({ id, title, cards, animationDelay = 0 }: KanbanCol
           </svg>
         </div>
         <span className="text-xs font-medium text-text-dim bg-surface px-2 py-1 rounded-md border border-border-subtle">
-          {cards.length}
+          {orderedCards.length}
         </span>
       </button>
 
